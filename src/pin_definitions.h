@@ -64,5 +64,18 @@ void set_pin_directions(){
     pinMode(JOYX_PIN, INPUT);
     pinMode(JOYY_PIN, INPUT);
 }
-
+std::array<std::string, 12> noteNames = {
+  "C",
+  "C#",
+  "D",
+  "D#",
+  "E",
+  "F",
+  "F#",
+  "G",
+  "G#",
+  "A",
+  "A#",
+  "B"
+};
 #endif  // PIN_DEFINITIONS_H

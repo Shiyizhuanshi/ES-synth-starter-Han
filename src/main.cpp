@@ -129,18 +129,36 @@ void displayUpdateTask(void * pvParameters) {
     xSemaphoreTake(sysState.mutex, portMAX_DELAY);
     
     //Display inputs
-    for (int i = 0; i < 20; i++){
-      u8g2.setCursor(5*(i+1), 10);
-      u8g2.print(sysState.inputs[i]);
-    }
-    xSemaphoreGive(sysState.mutex);
+    // for (int i = 0; i < 20; i++){
+    //   u8g2.setCursor(5*(i+1), 10);
+    //   u8g2.print(sysState.inputs[i]);
+    // }
+    u8g2.setCursor(10, 10);
+    u8g2.print("Position: ");
+
+    u8g2.drawFrame(70, 2, 8, 8);
+    u8g2.drawFrame(80, 2, 8, 8);
+    u8g2.drawFrame(90, 2, 8, 8);
+    u8g2.drawBox(100, 2, 8, 8);
 
     //Display knobs
     for (int i = 0; i < 4; i++){
-      u8g2.setCursor(10*(i+1), 20);
+      u8g2.setCursor(90 + 8*(i+1), 30);
       u8g2.print(sysState.knobValues[i].current_knob_value);
     }
+    std::vector<std::string> pressedKeys;
+    for (int i = 0; i < 12; i++){
+      if (sysState.inputs[i] == 0){
+        pressedKeys.push_back(noteNames[i]);
+      }
+    }
 
+    for (int i = 0; i < pressedKeys.size(); i++){
+      u8g2.setCursor(10+ 10*i, 20);
+      u8g2.print(pressedKeys[i].c_str());
+    }
+
+    xSemaphoreGive(sysState.mutex);
     // u8g2.setCursor(66,30);
     // u8g2.print((char) RX_Message[0]);
     // u8g2.print(RX_Message[1]);
@@ -155,7 +173,7 @@ void displayUpdateTask(void * pvParameters) {
 void decodeTask(void * pvParameters) {
   std::bitset<12> keys_1;
   std::bitset<12> previou_keys_1("111111111111");
-  volatile uint32_t localCurrentStepSize;
+  volatile uint32_t localCurrentStepSize = 0;
   while (1) {
     xQueueReceive(msgInQ, RX_Message, portMAX_DELAY);
     Serial.print((char) RX_Message[0]);
@@ -164,23 +182,23 @@ void decodeTask(void * pvParameters) {
     Serial.println();
 
     if (RX_Message[0] == 'P'){
-      sysState.inputs[RX_Message[1]] = 0;
+      localCurrentStepSize += stepSizes[RX_Message[1]];
     }
     else{
-      sysState.inputs[RX_Message[1]] = 1;
+      localCurrentStepSize -= stepSizes[RX_Message[1]];
     }
-    keys_1 = extractBits<20, 12>(sysState.inputs, 0, 12);
-    for (int i = 0; i < 12; i++){
-      if (keys_1.to_ulong() != 0xFFF){
-        if (keys_1[i] != previou_keys_1[i]){
-          localCurrentStepSize = keys_1[i] ? localCurrentStepSize+ stepSizes[i] : localCurrentStepSize - stepSizes[i];
-        }
-      }
-      else{
-        localCurrentStepSize = 0;
-      }
-    }
-    previou_keys_1 = keys_1;
+    // keys_1 = extractBits<20, 12>(sysState.inputs, 0, 12);
+    // for (int i = 0; i < 12; i++){
+    //   if (keys_1.to_ulong() != 0xFFF){
+    //     if (keys_1[i] != previou_keys_1[i]){
+    //       localCurrentStepSize = !keys_1[i] ? stepSizes[i] : 0;
+    //     }
+    //   }
+    //   else{
+    //     localCurrentStepSize = 0;
+    //   }
+    // }
+    // previou_keys_1 = keys_1;
     localCurrentStepSize = localCurrentStepSize * pow(2, sysState.knobValues[2].current_knob_value-4);
     __atomic_store_n(&currentStepSize, localCurrentStepSize, __ATOMIC_RELAXED);
   }
