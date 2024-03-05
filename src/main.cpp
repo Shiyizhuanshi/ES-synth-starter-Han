@@ -173,7 +173,7 @@ void decodeTask(void * pvParameters) {
     for (int i = 0; i < 12; i++){
       if (keys_1.to_ulong() != 0xFFF){
         if (keys_1[i] != previou_keys_1[i]){
-          localCurrentStepSize = keys_1[i] ? localCurrentStepSize+ stepSizes[i] : localCurrentStepSize - stepSizes[i];
+          localCurrentStepSize = !keys_1[i] ? stepSizes[i] : 0;
         }
       }
       else{
@@ -182,6 +182,7 @@ void decodeTask(void * pvParameters) {
     }
     previou_keys_1 = keys_1;
     localCurrentStepSize = localCurrentStepSize * pow(2, sysState.knobValues[2].current_knob_value-4);
+    Serial.println(sysState.knobValues[2].current_knob_value);
     __atomic_store_n(&currentStepSize, localCurrentStepSize, __ATOMIC_RELAXED);
   }
 }
@@ -197,6 +198,7 @@ void CAN_TX_Task (void * pvParameters) {
 
 void setup() {
   sysState.knobValues[2].current_knob_value = 4;
+  sysState.knobValues[3].current_knob_value = 6;
   //Set pin directions
   set_pin_directions();
 
