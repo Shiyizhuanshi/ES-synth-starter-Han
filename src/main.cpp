@@ -129,6 +129,7 @@ void scanKeysTask(void * pvParameters) {
         TX_Message[0] = keys[i] ? 'R' : 'P';
         TX_Message[1] = i;
         TX_Message[2] = sysState.posId + 3;
+        TX_Message[3] = sysState.posId;
         // CAN_TX(0x123, const_cast<uint8_t*>(TX_Message));
         xQueueSend( msgOutQ, const_cast<uint8_t*>(TX_Message), portMAX_DELAY);
       }
@@ -191,10 +192,14 @@ void decodeTask(void * pvParameters) {
   volatile uint32_t localCurrentStepSize;
   while (1) {
     xQueueReceive(msgInQ, RX_Message, portMAX_DELAY);
-    // Serial.println("RX: ");
-    // Serial.print((char) RX_Message[0]);
-    // Serial.print(RX_Message[1]);
-    // Serial.print(RX_Message[2]);
+    if (RX_Message[3] == 0 && sysState.posId == 1){
+      xQueueSend( msgOutQ, const_cast<uint8_t*>(RX_Message), portMAX_DELAY);
+    }
+    Serial.print("RX: ");
+    Serial.print((char) RX_Message[0]);
+    Serial.print(RX_Message[1]);
+    Serial.print(RX_Message[2]);
+    Serial.println();
 
     if (RX_Message[0] == 'P'){
       sysState.inputs[RX_Message[1]] = 0;
@@ -215,7 +220,6 @@ void decodeTask(void * pvParameters) {
     }
     previou_keys_1 = keys_1;
     localCurrentStepSize = localCurrentStepSize * pow(2, RX_Message[2] - 4);
-    Serial.println(sysState.knobValues[2].current_knob_value);
     __atomic_store_n(&currentStepSize, localCurrentStepSize, __ATOMIC_RELAXED);
   }
 }
@@ -225,11 +229,13 @@ void CAN_TX_Task (void * pvParameters) {
 	while (1) {
 		xQueueReceive(msgOutQ, msgOut, portMAX_DELAY);
 		xSemaphoreTake(CAN_TX_Semaphore, portMAX_DELAY);
-		CAN_TX(ID, msgOut);
     Serial.print("TX: ");
     Serial.print((char) msgOut[0]);
     Serial.print(msgOut[1]);
-    Serial.print((char) msgOut[2]);
+    Serial.print(msgOut[2]);
+    Serial.println();
+		CAN_TX(ID, msgOut);
+    
 	}
 }
 
@@ -258,7 +264,7 @@ void setup() {
   CAN_TX_Semaphore = xSemaphoreCreateCounting(3,3);
 
   //Initialise CAN Bus
-  CAN_Init(true);
+  CAN_Init();
   setCANFilter(0x123,0x7ff);
   CAN_RegisterRX_ISR(CAN_RX_ISR);
   CAN_RegisterTX_ISR(CAN_TX_ISR);
