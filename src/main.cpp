@@ -24,9 +24,11 @@ SemaphoreHandle_t CAN_TX_Semaphore; //CAN TX semaphore
 
 //Struct to hold system state
 struct {
-  std::bitset<20> inputs;
+  std::bitset<28> inputs;
   SemaphoreHandle_t mutex;  
   std::array<knob, 4> knobValues;
+  uint32_t deviceUId = HAL_GetUIDw0();
+  int posId = 0;
 } sysState;
 
 volatile uint32_t currentStepSize;
@@ -78,15 +80,34 @@ void scanKeysTask(void * pvParameters) {
   std::bitset<8> current_knobs;
   std::bitset<12> previou_keys("111111111111");
   std::bitset<8> previous_knobs("00000000");
+  std::bitset<1> WestDetect;
+  std::bitset<1> EastDetect;
+
   while (1){ 
     vTaskDelayUntil( &xLastWakeTime1, xFrequency1);
 
     xSemaphoreTake(sysState.mutex, portMAX_DELAY);
     sysState.inputs = readInputs();
 
-    keys = extractBits<20, 12>(sysState.inputs, 0, 12);
-    current_knobs = extractBits<20, 8>(sysState.inputs, 12, 8);
-    
+    keys = extractBits<28, 12>(sysState.inputs, 0, 12);
+    current_knobs = extractBits<28, 8>(sysState.inputs, 12, 8);
+
+    WestDetect = extractBits<28, 1>(sysState.inputs, 23, 1);
+    EastDetect = extractBits<28, 1>(sysState.inputs, 27, 1);
+    if (WestDetect[0]){
+      sysState.posId = 0;
+    }
+    else if (EastDetect[0]){
+      sysState.posId = 2;
+    }
+    else{
+      sysState.posId = 1;
+    }
+    // Serial.println("WestDetect: ");
+    // Serial.print(WestDetect.to_ulong());
+    // Serial.println("EastDetect: ");
+    // Serial.print(EastDetect.to_ulong());
+
     updateKnob(sysState.knobValues, previous_knobs, current_knobs);
 
     xSemaphoreGive(sysState.mutex);
@@ -121,6 +142,7 @@ void displayUpdateTask(void * pvParameters) {
   const TickType_t xFrequency2 = 100/portTICK_PERIOD_MS;
   TickType_t xLastWakeTime2 = xTaskGetTickCount();
   static uint32_t count = 0;
+
   while (1) {
     vTaskDelayUntil( &xLastWakeTime2, xFrequency2);
     u8g2.clearBuffer();
@@ -141,6 +163,14 @@ void displayUpdateTask(void * pvParameters) {
       u8g2.print(sysState.knobValues[i].current_knob_value);
     }
 
+    for (int i = 0; i < 4; i++){
+      if (i == sysState.posId){
+        u8g2.drawBox(10*(i+1), 23, 7, 7);
+      }
+      else{
+        u8g2.drawFrame(10*(i+1), 23, 7, 7);
+      }
+    }
     // u8g2.setCursor(66,30);
     // u8g2.print((char) RX_Message[0]);
     // u8g2.print(RX_Message[1]);
@@ -169,7 +199,7 @@ void decodeTask(void * pvParameters) {
     else{
       sysState.inputs[RX_Message[1]] = 1;
     }
-    keys_1 = extractBits<20, 12>(sysState.inputs, 0, 12);
+    keys_1 = extractBits<28, 12>(sysState.inputs, 0, 12);
     for (int i = 0; i < 12; i++){
       if (keys_1.to_ulong() != 0xFFF){
         if (keys_1[i] != previou_keys_1[i]){
