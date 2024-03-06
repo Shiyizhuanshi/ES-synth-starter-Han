@@ -51,16 +51,17 @@ void setOutMuxBit(const uint8_t bitIdx, const bool value) {
 }
 
 void sampleISR() {
-  static uint32_t phaseAcc = 0;
-  phaseAcc = currentStepSize ? phaseAcc + currentStepSize : 0;
-  int32_t Vout = (phaseAcc >> 24) - 128;
-  Vout = Vout >> (8 - sysState.knobValues[3].current_knob_value);
-  analogWrite(OUTR_PIN, Vout + 128);
+  if (sysState.posId == 0){
+    static uint32_t phaseAcc = 0;
+    phaseAcc = currentStepSize ? phaseAcc + currentStepSize : 0;
+    int32_t Vout = (phaseAcc >> 24) - 128;
+    Vout = Vout >> (8 - sysState.knobValues[3].current_knob_value);
+    analogWrite(OUTR_PIN, Vout + 128);
+  }
 }
 
 void CAN_RX_ISR (void) {
 	uint8_t RX_Message_ISR[8];
-	uint32_t ID;
 	CAN_RX(ID, RX_Message_ISR);
 	xQueueSendFromISR(msgInQ, RX_Message_ISR, NULL);
 }
@@ -103,6 +104,7 @@ void scanKeysTask(void * pvParameters) {
     else{
       sysState.posId = 1;
     }
+    sysState.knobValues[2].current_knob_value = sysState.posId + 3;
     // Serial.println("WestDetect: ");
     // Serial.print(WestDetect.to_ulong());
     // Serial.println("EastDetect: ");
@@ -126,7 +128,7 @@ void scanKeysTask(void * pvParameters) {
       if (keys[i] != previou_keys[i]){
         TX_Message[0] = keys[i] ? 'R' : 'P';
         TX_Message[1] = i;
-        TX_Message[2] = 4;
+        TX_Message[2] = sysState.posId + 3;
         // CAN_TX(0x123, const_cast<uint8_t*>(TX_Message));
         xQueueSend( msgOutQ, const_cast<uint8_t*>(TX_Message), portMAX_DELAY);
       }
@@ -171,11 +173,12 @@ void displayUpdateTask(void * pvParameters) {
         u8g2.drawFrame(10*(i+1), 23, 7, 7);
       }
     }
-    // u8g2.setCursor(66,30);
-    // u8g2.print((char) RX_Message[0]);
-    // u8g2.print(RX_Message[1]);
-    // u8g2.print(RX_Message[2]);
-
+    
+    u8g2.setCursor(66,30);
+    u8g2.print((char) RX_Message[0]);
+    u8g2.print(RX_Message[1]);
+    u8g2.print(RX_Message[2]);
+ 
     u8g2.sendBuffer();
 	  
     digitalToggle(LED_BUILTIN);
@@ -188,10 +191,10 @@ void decodeTask(void * pvParameters) {
   volatile uint32_t localCurrentStepSize;
   while (1) {
     xQueueReceive(msgInQ, RX_Message, portMAX_DELAY);
-    Serial.print((char) RX_Message[0]);
-    Serial.print(RX_Message[1]);
-    Serial.print(RX_Message[2]);
-    Serial.println();
+    // Serial.println("RX: ");
+    // Serial.print((char) RX_Message[0]);
+    // Serial.print(RX_Message[1]);
+    // Serial.print(RX_Message[2]);
 
     if (RX_Message[0] == 'P'){
       sysState.inputs[RX_Message[1]] = 0;
@@ -211,7 +214,7 @@ void decodeTask(void * pvParameters) {
       }
     }
     previou_keys_1 = keys_1;
-    localCurrentStepSize = localCurrentStepSize * pow(2, sysState.knobValues[2].current_knob_value-4);
+    localCurrentStepSize = localCurrentStepSize * pow(2, RX_Message[2] - 4);
     Serial.println(sysState.knobValues[2].current_knob_value);
     __atomic_store_n(&currentStepSize, localCurrentStepSize, __ATOMIC_RELAXED);
   }
@@ -222,7 +225,11 @@ void CAN_TX_Task (void * pvParameters) {
 	while (1) {
 		xQueueReceive(msgOutQ, msgOut, portMAX_DELAY);
 		xSemaphoreTake(CAN_TX_Semaphore, portMAX_DELAY);
-		CAN_TX(0x123, msgOut);
+		CAN_TX(ID, msgOut);
+    Serial.print("TX: ");
+    Serial.print((char) msgOut[0]);
+    Serial.print(msgOut[1]);
+    Serial.print((char) msgOut[2]);
 	}
 }
 
