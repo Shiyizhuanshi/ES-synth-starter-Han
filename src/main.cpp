@@ -235,7 +235,7 @@ void scanKeysTask(void * pvParameters) {
 
     //if there is nothing on the west and east before, but now there is something on the west or east
     //then update the posId
-    if (old_EastDetect[0] && old_WestDetect[0] && (!sysState.WestDetect[0] || !sysState.EastDetect[0])){
+    if (old_EastDetect[0] && old_WestDetect[0] && (!sysState.WestDetect[0])){
       Serial.println("request posId");
       delay(100);
       TX_Message[0] = 'N';
@@ -246,6 +246,7 @@ void scanKeysTask(void * pvParameters) {
     // if nothing on west and east then local play mode
     if (sysState.EastDetect[0] && sysState.WestDetect[0]){
       sysState.posId = 0;
+      sysState.knobValues[2].current_knob_value = sysState.posId + 3;
       for (int i = 0; i < 12; i++){
         if (keys.to_ulong() != 0xFFF){
           if (!keys[i]) {
@@ -256,6 +257,7 @@ void scanKeysTask(void * pvParameters) {
           localCurrentStepSize1 = 0;
         }
       }
+      localCurrentStepSize1 = localCurrentStepSize1 * pow(2, sysState.knobValues[2].current_knob_value - 4);
       // Serial.println(localCurrentStepSize1);
       __atomic_store_n(&currentStepSize, localCurrentStepSize1, __ATOMIC_RELAXED);
     }
@@ -376,6 +378,7 @@ void decodeTask(void * pvParameters) {
     if (RX_Message[0] == 'U' && RX_Message[2] == sysState.local_boardId){
       if (RX_Message[1] >= sysState.posId){
         sysState.posId = RX_Message[1] + 1;
+        sysState.knobValues[2].current_knob_value = sysState.posId + 3;
         Serial.print("update posId: ");
         Serial.println(sysState.posId);
       }
