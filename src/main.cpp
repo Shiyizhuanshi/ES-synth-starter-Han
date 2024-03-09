@@ -35,8 +35,11 @@ struct {
   std::bitset<28> inputs;
   SemaphoreHandle_t mutex;  
   std::array<knob, 4> knobValues;
-  uint32_t local_boardId = HAL_GetUIDw0();
+  uint8_t local_boardId = HAL_GetUIDw0();
   int posId = 0;
+  std::bitset<1> WestDetect;
+  std::bitset<1> EastDetect;
+  bool singleMode = true;
 } sysState;
 
 volatile uint32_t currentStepSize;
@@ -87,20 +90,137 @@ void CAN_TX_ISR (void) {
 	xSemaphoreGiveFromISR(CAN_TX_Semaphore, NULL);
 }
 
-void scanKeysTask(void * pvParameters) {
+void send_handshake_signal(int stateW, int stateE){
+    setRow(5);
+    delayMicroseconds(3);
+    digitalWrite(OUT_PIN, stateW);
+    delayMicroseconds(3);
+    setRow(6);
+    delayMicroseconds(3);
+    digitalWrite(OUT_PIN, stateE);
+    delayMicroseconds(3);
+}
 
+// reutrn the posId of the board
+int auto_detect_init(){
+  uint8_t detext_RX_Message[8] = {0};  //CAN RX message
+  uint8_t detext_TX_Message[8] = {0};  //CAN RX message
+  uint32_t detect_CAN_ID = 0x123; //CAN ID
+  int wait_count = 300;
+  int ready_board_count = 0;
+  std::bitset<28> inputs;
+  std::bitset<1> WestDetect;
+  std::bitset<1> EastDetect;
   
-  volatile uint32_t localCurrentStepSize1;
+  // // send and receive handshake signals for 3s
+  // while (wait_count > 0){
+  //     wait_count--;
+  //     send_handshake_signal(1,1);
+  //     delay(10);
+  //     inputs = readInputs();
+  // }
+  for (int i = 0; i < 100; i++){
+      send_handshake_signal(1,1);
+      delay(30);
+  }
+  inputs = readInputs();
+  WestDetect = extractBits<28, 1>(inputs, 23, 1);
+  EastDetect = extractBits<28, 1>(inputs, 27, 1);
+  delay(2000);
+  //after 3s, sends handshake status to the one board to process
+  //if the board is the most west then it is the main board which needs to 
+  //process the handshake status of the other boards
+  //if not then it is the other boards which need to send the handshake status to the main board
+  if (!WestDetect[0]){
+    Serial.println("west borad detected");
+    // if west detect, waiting for message from the main board
+    do{
+        Serial.println("waiting for main board message!");
+        delay(100);
+        while (CAN_CheckRXLevel())
+        CAN_RX(detect_CAN_ID, detext_RX_Message);
+        Serial.println("RX: ");
+        Serial.print((char)detext_RX_Message[0]);
+        Serial.println(detext_RX_Message[1]);
+    } while (detext_RX_Message[0] !=  'C' && detext_RX_Message[1] != 0);
+    Serial.println("main board message confirmed!");
+    // when main board is determined, set all handshake signals to 0
+    // give time for all boards to receive the handshake signal
+    for (int i = 0; i < 10; i++){
+        send_handshake_signal(0,0);
+        delay(30);
+    }
+    // keep updating the handshake signal until the west is detected
+    do{
+        inputs = readInputs();
+        WestDetect = extractBits<28, 1>(inputs, 23, 1);
+        Serial.println(WestDetect[0]);
+        delay(10);
+    } while (WestDetect[0]);
+    Serial.println("update west detect!");
+    delay(200);
+    //once west is detected, wait the message from west board
+    do{
+        Serial.println("waiting for west board message!");
+        while (CAN_CheckRXLevel()) CAN_RX(detect_CAN_ID, detext_RX_Message);
+        Serial.println(CAN_CheckRXLevel());
+        Serial.print((char)detext_RX_Message[0]);
+        Serial.println(detext_RX_Message[1]);
+    } while (detext_RX_Message[0] != 'M');
 
+    for (int i = 0; i < 10; i++){
+        send_handshake_signal(1,1);
+        delay(10);
+    }
+    Serial.println("update east detect!");
+    detext_TX_Message[0] = 'M';
+    detext_TX_Message[1] = detext_RX_Message[1] + 1;
+    //send board position to next board
+    if (detext_RX_Message[1] != 2){
+      CAN_TX(detect_CAN_ID, detext_TX_Message);
+      Serial.println("send board pos to east board");
+      Serial.print((char) detext_TX_Message[0]);
+      Serial.println(detext_TX_Message[1]);
+    }
+    else{
+      Serial.println("I am the most east board!");
+      Serial.println(detext_TX_Message[1]);
+    }
+    return detext_TX_Message[1];
+  }
+  else{
+    delay(500);
+    Serial.println("I am the main board!");
+    // if nothing on the west, then it is the main board with position 0
+    detext_TX_Message[0] = 'C';
+    detext_TX_Message[1] = 0;
+    // tell the other boards that the main board is determined
+    CAN_TX(detect_CAN_ID, detext_TX_Message);
+    Serial.println("send main board message to other boards!");
+    //give the other boards time to receive the message
+    delay(100);
+    send_handshake_signal(1,1);
+    //give the other boards time to update West Detect
+    delay(200);
+    detext_TX_Message[0] = 'M';
+    CAN_TX(detect_CAN_ID, detext_TX_Message);
+    Serial.println("send board info to other boards!");
+    Serial.print((char) detext_TX_Message[0]);
+    Serial.println(detext_TX_Message[1]);
+    return 0;
+  }
+}
+
+void scanKeysTask(void * pvParameters) {
+  volatile uint32_t localCurrentStepSize1;
   const TickType_t xFrequency1 = 20/portTICK_PERIOD_MS;
   TickType_t xLastWakeTime1 = xTaskGetTickCount();
   std::bitset<12> keys;
   std::bitset<8> current_knobs;
   std::bitset<12> previou_keys("111111111111");
   std::bitset<8> previous_knobs("00000000");
-  std::bitset<1> WestDetect;
-  std::bitset<1> EastDetect;
-
+  std::bitset<1> old_WestDetect;
+  std::bitset<1> old_EastDetect;
   while (1){ 
     vTaskDelayUntil( &xLastWakeTime1, xFrequency1);
 
@@ -109,11 +229,22 @@ void scanKeysTask(void * pvParameters) {
 
     keys = extractBits<28, 12>(sysState.inputs, 0, 12);
     current_knobs = extractBits<28, 8>(sysState.inputs, 12, 8);
-    WestDetect = extractBits<28, 1>(sysState.inputs, 23, 1);
-    EastDetect = extractBits<28, 1>(sysState.inputs, 27, 1);
+    sysState.WestDetect = extractBits<28, 1>(sysState.inputs, 23, 1);
+    sysState.EastDetect = extractBits<28, 1>(sysState.inputs, 27, 1);
     updateKnob(sysState.knobValues, previous_knobs, current_knobs);
 
-    if (EastDetect[0] && WestDetect[0]){
+    //if there is nothing on the west and east before, but now there is something on the west or east
+    //then update the posId
+    if (old_EastDetect[0] && old_WestDetect[0] && (!sysState.WestDetect[0] || !sysState.EastDetect[0])){
+      Serial.println("request posId");
+      delay(100);
+      TX_Message[0] = 'N';
+      TX_Message[1] = sysState.local_boardId;
+      xQueueSend( msgOutQ, const_cast<uint8_t*>(TX_Message), portMAX_DELAY);
+    }
+
+    // if nothing on west and east then local play mode
+    if (sysState.EastDetect[0] && sysState.WestDetect[0]){
       sysState.posId = 0;
       for (int i = 0; i < 12; i++){
         if (keys.to_ulong() != 0xFFF){
@@ -128,6 +259,7 @@ void scanKeysTask(void * pvParameters) {
       // Serial.println(localCurrentStepSize1);
       __atomic_store_n(&currentStepSize, localCurrentStepSize1, __ATOMIC_RELAXED);
     }
+    // transmit mode, do not play note locally
     else{
       for (int i = 0; i < 12; i++){
         if (keys[i] != previou_keys[i]){
@@ -143,6 +275,8 @@ void scanKeysTask(void * pvParameters) {
 
     previou_keys = keys;
     previous_knobs = current_knobs;
+    old_WestDetect = sysState.WestDetect;
+    old_EastDetect = sysState.EastDetect;
     xSemaphoreGive(sysState.mutex);
   }
 }
@@ -184,7 +318,11 @@ void displayUpdateTask(void * pvParameters) {
     u8g2.print((char) RX_Message[0]);
     u8g2.print(RX_Message[1]);
     u8g2.print(RX_Message[2]);
- 
+
+    u8g2.setCursor(100,30);
+    u8g2.print(sysState.WestDetect[0]);
+    u8g2.print(sysState.EastDetect[0]);
+
     u8g2.sendBuffer();
 	  
     digitalToggle(LED_BUILTIN);
@@ -227,6 +365,22 @@ void decodeTask(void * pvParameters) {
         xQueueSend( msgOutQ, const_cast<uint8_t*>(RX_Message), portMAX_DELAY);
     }
     
+    if (RX_Message[0] == 'N'){
+      Serial.println("new board request receriaved!");
+      TX_Message[0] = 'U';
+      TX_Message[1] = sysState.posId;
+      TX_Message[2] = RX_Message[1];
+      xQueueSend( msgOutQ, const_cast<uint8_t*>(TX_Message), portMAX_DELAY);
+    }
+
+    if (RX_Message[0] == 'U' && RX_Message[2] == sysState.local_boardId){
+      if (RX_Message[1] >= sysState.posId){
+        sysState.posId = RX_Message[1] + 1;
+        Serial.print("update posId: ");
+        Serial.println(sysState.posId);
+      }
+    }
+
     Serial.print("RX: ");
     Serial.print((char) RX_Message[0]);
     Serial.print(RX_Message[1]);
@@ -249,131 +403,6 @@ void CAN_TX_Task (void * pvParameters) {
 		CAN_TX(ID, msgOut);
     
 	}
-}
-
-void send_handshake_signal(int stateW, int stateE){
-    setRow(5);
-    delayMicroseconds(3);
-    digitalWrite(OUT_PIN, stateW);
-    delayMicroseconds(3);
-    setRow(6);
-    delayMicroseconds(3);
-    digitalWrite(OUT_PIN, stateE);
-    delayMicroseconds(3);
-}
-
-  // reutrn the posId of the board
-  int auto_detect_init(){
-  uint8_t detext_RX_Message[8] = {0};  //CAN RX message
-  uint8_t detext_TX_Message[8] = {0};  //CAN RX message
-  uint32_t detect_CAN_ID = 0x123; //CAN ID
-    int wait_count = 300;
-    int ready_board_count = 0;
-    std::bitset<28> inputs;
-    std::bitset<1> WestDetect;
-    std::bitset<1> EastDetect;
-    
-    // // send and receive handshake signals for 3s
-    // while (wait_count > 0){
-    //     wait_count--;
-    //     send_handshake_signal(1,1);
-    //     delay(10);
-    //     inputs = readInputs();
-    // }
-    for (int i = 0; i < 100; i++){
-        send_handshake_signal(1,1);
-        delay(30);
-    }
-    inputs = readInputs();
-    WestDetect = extractBits<28, 1>(inputs, 23, 1);
-    EastDetect = extractBits<28, 1>(inputs, 27, 1);
-    delay(2000);
-    //after 3s, sends handshake status to the one board to process
-    //if the board is the most west then it is the main board which needs to 
-    //process the handshake status of the other boards
-    //if not then it is the other boards which need to send the handshake status to the main board
-    if (!WestDetect[0]){
-        Serial.println("west borad detected");
-        // if west detect, waiting for message from the main board
-        do{
-            Serial.println("waiting for main board message!");
-            delay(100);
-            while (CAN_CheckRXLevel())
-	          CAN_RX(detect_CAN_ID, detext_RX_Message);
-            Serial.println("main board message received!");
-            Serial.print((char)detext_RX_Message[0]);
-            Serial.println(detext_RX_Message[1]);
-        } while (detext_RX_Message[0] !=  'C' && detext_RX_Message[1] != 0);
-        // when main board is determined, set all handshake signals to 0
-        // give time for all boards to receive the handshake signal
-        for (int i = 0; i < 10; i++){
-            send_handshake_signal(0,0);
-            delay(30);
-        }
-        // keep updating the handshake signal until the west is detected
-        do{
-            inputs = readInputs();
-            WestDetect = extractBits<28, 1>(inputs, 23, 1);
-            Serial.println(WestDetect[0]);
-            delay(30);
-        } while (WestDetect[0]);
-        delay(500);
-        Serial.println("update west detect!");
-        //once west is detected, wait the message from west board
-        do{
-            Serial.println("waiting for west board message!");
-            while (CAN_CheckRXLevel()) CAN_RX(detect_CAN_ID, detext_RX_Message);
-            Serial.println("west borad message received!");
-            Serial.print((char)detext_RX_Message[0]);
-            Serial.println(detext_RX_Message[1]);
-        } while (detext_RX_Message[0] != 'M');
-
-        // CAN_RX(detect_CAN_ID, detext_RX_Message);
-        // Serial.println("west borad message received!");
-        // Serial.print((char)detext_RX_Message[0]);
-        // Serial.println(detext_RX_Message[1]);
-
-        for (int i = 0; i < 10; i++){
-            send_handshake_signal(1,1);
-            delay(30);
-        }
-        Serial.println("update east detect!");
-        detext_TX_Message[0] = 'M';
-        detext_TX_Message[1] = detext_RX_Message[1] + 1;
-        //send board position to next board
-        if (detext_RX_Message[1] != 2){
-          CAN_TX(detect_CAN_ID, detext_TX_Message);
-          Serial.println("send board pos to east board");
-          Serial.print((char) detext_TX_Message[0]);
-          Serial.println(detext_TX_Message[1]);
-        }
-        else{
-          Serial.println("I am the most east board!");
-          Serial.println(detext_TX_Message[1]);
-        }
-        return detext_TX_Message[1];
-    }
-    else{
-        delay(1000);
-        Serial.println("I am the main board!");
-        // if nothing on the west, then it is the main board with position 0
-        detext_TX_Message[0] = 'C';
-        detext_TX_Message[1] = 0;
-        // tell the other boards that the main board is determined
-        CAN_TX(detect_CAN_ID, detext_TX_Message);
-        Serial.println("send main board message to other boards!");
-        //give the other boards time to receive the message
-        delay(100);
-        send_handshake_signal(1,1);
-        //give the other boards time to update West Detect
-        delay(100);
-        detext_TX_Message[0] = 'M';
-        CAN_TX(detect_CAN_ID, detext_TX_Message);
-        Serial.println("send board info to other boards!");
-        Serial.print((char) detext_TX_Message[0]);
-        Serial.println(detext_TX_Message[1]);
-        return 0;
-    }
 }
 
 void setup() {
@@ -407,10 +436,13 @@ void setup() {
   Serial.println("Serial port initialised");
   
   sysState.posId = auto_detect_init();
+  delay(200);
   initial_display();
   Serial.print("posId: ");
   Serial.println(sysState.posId);
   sysState.knobValues[2].current_knob_value = sysState.posId + 3;
+  Serial.print("UID: ");
+  Serial.println(sysState.local_boardId);
 
   //Create tasks
   xTaskCreate(
