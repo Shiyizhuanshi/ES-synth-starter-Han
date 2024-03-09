@@ -24,7 +24,7 @@ SemaphoreHandle_t CAN_TX_Semaphore; //CAN TX semaphore
 
 //Struct to hold system state
 struct {
-  std::bitset<20> inputs;
+  std::bitset<inputSize> inputs;
   SemaphoreHandle_t mutex;  
   std::array<knob, 4> knobValues;
 } sysState;
@@ -76,19 +76,24 @@ void scanKeysTask(void * pvParameters) {
   TickType_t xLastWakeTime1 = xTaskGetTickCount();
   std::bitset<12> keys;
   std::bitset<8> current_knobs;
-  std::bitset<12> previou_keys("111111111111");
+  std::bitset<4> current_knobs_click;
+  
+  std::bitset<12> previous_keys("111111111111");
   std::bitset<8> previous_knobs("00000000");
+  std::bitset<4> previous_knobs_click("0000");
   while (1){ 
     vTaskDelayUntil( &xLastWakeTime1, xFrequency1);
 
     xSemaphoreTake(sysState.mutex, portMAX_DELAY);
     sysState.inputs = readInputs();
 
-    keys = extractBits<20, 12>(sysState.inputs, 0, 12);
-    current_knobs = extractBits<20, 8>(sysState.inputs, 12, 8);
-    
-    updateKnob(sysState.knobValues, previous_knobs, current_knobs);
+    keys = extractBits<inputSize, 12>(sysState.inputs, 0, 12);
+    current_knobs = extractBits<inputSize, 8>(sysState.inputs, 12, 8);
+    current_knobs_click = extractBits<inputSize, 4>(sysState.inputs, 20, 2).to_ulong() << 2 | extractBits<inputSize, 4>(sysState.inputs, 24, 2).to_ulong();
 
+    updateKnob(sysState.knobValues, previous_knobs, current_knobs, previous_knobs_click, current_knobs_click);
+
+    
     xSemaphoreGive(sysState.mutex);
 
     for (int i = 0; i < 12; i++){
@@ -102,7 +107,7 @@ void scanKeysTask(void * pvParameters) {
       // }
       
       // Decode keys
-      if (keys[i] != previou_keys[i]){
+      if (keys[i] != previous_keys[i]){
         TX_Message[0] = keys[i] ? 'R' : 'P';
         TX_Message[1] = i;
         TX_Message[2] = 4;
@@ -111,8 +116,9 @@ void scanKeysTask(void * pvParameters) {
       }
     }
 
-    previou_keys = keys;
+    previous_keys = keys;
     previous_knobs = current_knobs;
+    previous_knobs_click = current_knobs_click;
     // __atomic_store_n(&currentStepSize, localCurrentStepSize, __ATOMIC_RELAXED);
   }
 }
@@ -133,30 +139,40 @@ void displayUpdateTask(void * pvParameters) {
     //   u8g2.setCursor(5*(i+1), 10);
     //   u8g2.print(sysState.inputs[i]);
     // }
-    u8g2.setCursor(10, 10);
-    u8g2.print("Position: ");
+    if (sysState.knobValues[0].clickState){
+      u8g2.setCursor(10, 10);
+      u8g2.print("Position: ");
 
-    u8g2.drawFrame(70, 2, 8, 8);
-    u8g2.drawFrame(80, 2, 8, 8);
-    u8g2.drawFrame(90, 2, 8, 8);
-    u8g2.drawBox(100, 2, 8, 8);
-
-    //Display knobs
-    for (int i = 0; i < 4; i++){
-      u8g2.setCursor(90 + 8*(i+1), 30);
-      u8g2.print(sysState.knobValues[i].current_knob_value);
+      u8g2.drawFrame(70, 2, 8, 8);
+      u8g2.drawFrame(80, 2, 8, 8);
+      u8g2.drawFrame(90, 2, 8, 8);
+      u8g2.drawBox(100, 2, 8, 8);
     }
-    std::vector<std::string> pressedKeys;
-    for (int i = 0; i < 12; i++){
-      if (sysState.inputs[i] == 0){
-        pressedKeys.push_back(noteNames[i]);
+    else{
+      //Display knob click state
+      for (int i = 0; i < 4; i++){
+        u8g2.setCursor(20 + 8*(i+1), 30);
+        u8g2.print(sysState.knobValues[i].clickState);
+      }
+
+      //Display knobs
+      for (int i = 0; i < 4; i++){
+        u8g2.setCursor(90 + 8*(i+1), 30);
+        u8g2.print(sysState.knobValues[i].current_knob_value);
+      }
+      std::vector<std::string> pressedKeys;
+      for (int i = 0; i < 12; i++){
+        if (sysState.inputs[i] == 0){
+          pressedKeys.push_back(noteNames[i]);
+        }
+      }
+
+      for (int i = 0; i < pressedKeys.size(); i++){
+        u8g2.setCursor(10+ 10*i, 20);
+        u8g2.print(pressedKeys[i].c_str());
       }
     }
-
-    for (int i = 0; i < pressedKeys.size(); i++){
-      u8g2.setCursor(10+ 10*i, 20);
-      u8g2.print(pressedKeys[i].c_str());
-    }
+    
 
     xSemaphoreGive(sysState.mutex);
     // u8g2.setCursor(66,30);
