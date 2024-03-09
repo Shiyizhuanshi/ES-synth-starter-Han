@@ -149,6 +149,12 @@ void displayUpdateTask(void * pvParameters) {
       u8g2.drawBox(100, 2, 8, 8);
     }
     else{
+      //Display inputs
+      for (int i = 0; i < 20; i++){
+        u8g2.setCursor(5*(i+1), 10);
+        u8g2.print(sysState.inputs[i]);
+      }
+
       //Display knob click state
       for (int i = 0; i < 4; i++){
         u8g2.setCursor(20 + 8*(i+1), 30);
