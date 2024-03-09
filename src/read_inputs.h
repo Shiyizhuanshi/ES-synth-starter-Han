@@ -25,10 +25,10 @@ void setRow(uint8_t rowIdx){
 std::bitset<4> readCols(int rowId){
   setRow(rowId);
   delayMicroseconds(3);
-  //test handshake signal
-  if (rowId == 5 || rowId ==6){
-    digitalWrite(OUT_PIN, 1);
-  }
+  //send handshake signal
+  // if (rowId == 5 || rowId ==6){
+  //   digitalWrite(OUT_PIN, 1);
+  // }
   std::bitset<4> result;
   result[0] = digitalRead(C0_PIN);
   result[1] = digitalRead(C1_PIN);
