@@ -14,7 +14,7 @@ const uint32_t interval = 100; //Display update interval
 uint32_t ID = 0x123; //CAN ID
 uint8_t RX_Message[8] = {0};  //CAN RX message
 volatile uint8_t TX_Message[8] = {0}; //CAN TX message
-
+std::string movement;
 //Create message input and output queues
 //36 messages of 8 bytes, each message takes around 0.7ms to process
 QueueHandle_t msgInQ = xQueueCreate(36,8);; // Message input queue
@@ -27,6 +27,7 @@ struct {
   std::bitset<inputSize> inputs;
   SemaphoreHandle_t mutex;  
   std::array<knob, 4> knobValues;
+  int joystickState = 0;
 } sysState;
 
 volatile uint32_t currentStepSize;
@@ -67,16 +68,62 @@ void CAN_TX_ISR (void) {
 	xSemaphoreGiveFromISR(CAN_TX_Semaphore, NULL);
 }
 
-void scanKeysTask(void * pvParameters) {
-
+void scanJoystickTask(void * pvParameters) {
+  const TickType_t xFrequency3 = 99/portTICK_PERIOD_MS;
+  int joystickX;
+  int joystickY;
+  int origin = 490;
+  int deadZone = 150;
   
-  // volatile uint32_t localCurrentStepSize;
+  std::string previous_movement = "origin";
+  std::string current_movement;
+  TickType_t xLastWakeTime3 = xTaskGetTickCount();
+  while (1) {
+    vTaskDelayUntil( &xLastWakeTime3, xFrequency3);
+    joystickX = analogRead(JOYX_PIN);
+    joystickY = analogRead(JOYY_PIN);
+    // Serial.print(joystickX);
+    // Serial.print(", ");
+    // Serial.println(joystickY);
+    if (abs(joystickX - origin) <= deadZone && abs(joystickY - origin) <= deadZone){
+      // Serial.println("In deadzone");
+      current_movement = "origin";
+    }
+    else if (joystickX - origin > deadZone){
+      // Serial.println("Left");
+      current_movement = "left";
+    }
+    else if (joystickX - origin < -deadZone){
+      // Serial.println("Right");
+      current_movement = "right";
+    }
+    else if (joystickY - origin > deadZone){
+      // Serial.println("Down");
+      current_movement = "down";
+    }
+    else if (joystickY - origin < -deadZone){
+      // Serial.println("Up");
+      current_movement = "up";
+    }
 
+    if (current_movement != previous_movement && current_movement == "origin"){
+      movement = previous_movement;
+    }
+    else{movement = "origin";}
+    // Serial.println(movement.c_str());
+    previous_movement = current_movement;
+  }
+}
+
+void scanKeysTask(void * pvParameters) {
+  // volatile uint32_t localCurrentStepSize;
   const TickType_t xFrequency1 = 20/portTICK_PERIOD_MS;
   TickType_t xLastWakeTime1 = xTaskGetTickCount();
   std::bitset<12> keys;
   std::bitset<8> current_knobs;
   std::bitset<4> current_knobs_click;
+  std::bitset<1> joystickClick;
+  
   
   std::bitset<12> previous_keys("111111111111");
   std::bitset<8> previous_knobs("00000000");
@@ -90,7 +137,12 @@ void scanKeysTask(void * pvParameters) {
     keys = extractBits<inputSize, 12>(sysState.inputs, 0, 12);
     current_knobs = extractBits<inputSize, 8>(sysState.inputs, 12, 8);
     current_knobs_click = extractBits<inputSize, 4>(sysState.inputs, 20, 2).to_ulong() << 2 | extractBits<inputSize, 4>(sysState.inputs, 24, 2).to_ulong();
-
+    sysState.joystickState = extractBits<inputSize, 1>(sysState.inputs, 22, 1).to_ulong();
+    // joystickX = analogRead(JOYX_PIN);
+    // joystickY = analogRead(JOYY_PIN);
+    // Serial.print(joystickX);
+    // Serial.print(", ");
+    // Serial.println(joystickY);
     updateKnob(sysState.knobValues, previous_knobs, current_knobs, previous_knobs_click, current_knobs_click);
 
     
@@ -127,6 +179,8 @@ void displayUpdateTask(void * pvParameters) {
   const TickType_t xFrequency2 = 100/portTICK_PERIOD_MS;
   TickType_t xLastWakeTime2 = xTaskGetTickCount();
   static uint32_t count = 0;
+  int posX = 0;
+  int posY = 0;
   while (1) {
     vTaskDelayUntil( &xLastWakeTime2, xFrequency2);
     u8g2.clearBuffer();
@@ -148,12 +202,33 @@ void displayUpdateTask(void * pvParameters) {
       u8g2.drawFrame(90, 2, 8, 8);
       u8g2.drawBox(100, 2, 8, 8);
     }
+    else if (sysState.knobValues[1].clickState){
+      if (movement == "right"){
+        posX += 2;
+      }
+      else if (movement == "left"){
+        posX -= 2;
+      }
+      else if (movement == "up"){
+        posY -= 2;
+      }
+      else if (movement == "down"){
+        posY += 2;
+      }
+      posX = constrain(posX, 2, 120);
+      posY = constrain(posY, 0, 28);
+      u8g2.setCursor(10, 10);
+      u8g2.drawFrame(posX, posY, 3, 3);
+    }
     else{
       //Display inputs
       for (int i = 0; i < 20; i++){
         u8g2.setCursor(5*(i+1), 10);
         u8g2.print(sysState.inputs[i]);
       }
+
+      u8g2.setCursor(10, 30);
+      u8g2.print(sysState.joystickState);
 
       //Display knob click state
       for (int i = 0; i < 4; i++){
@@ -305,6 +380,15 @@ void setup() {
   NULL,			/* Parameter passed into the task */
   1,			/* Task priority */
   &CAN_TX_Handle );	/* Pointer to store the task handle */
+
+  TaskHandle_t scanJoystick_Handle = NULL;
+  xTaskCreate(
+  scanJoystickTask,		/* Function that implements the task */
+  "scanJoystick",		/* Text name for the task */
+  256 ,      		/* Stack size in words, not bytes */
+  NULL,			/* Parameter passed into the task */
+  1,			/* Task priority */
+  &scanJoystick_Handle );	/* Pointer to store the task handle */
   
   sysState.mutex = xSemaphoreCreateMutex(); //Create mutex
   vTaskStartScheduler();
