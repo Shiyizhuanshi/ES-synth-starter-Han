@@ -8,6 +8,7 @@
 #include "read_inputs.h"
 #include "pin_definitions.h"
 #include "read_inputs.h"
+#include "wave_synth.h"
 
 
 //Constants
@@ -49,6 +50,156 @@ const uint32_t sampleRate = 22000;  //Sample rate
 //Display driver object
 U8G2_SSD1305_128X32_NONAME_F_HW_I2C u8g2(U8G2_R0);
 
+const int SAMPLE_BUFFER_SIZE =1100;
+uint8_t sampleBuffer0[SAMPLE_BUFFER_SIZE/2];
+uint8_t sampleBuffer1[SAMPLE_BUFFER_SIZE/2];
+SemaphoreHandle_t sampleBufferSemaphore;
+volatile bool writeBuffer1 = false;
+
+void writeToSampleBuffer(uint32_t Vout, uint32_t writeCtr){
+  if (writeBuffer1){
+                sampleBuffer1[writeCtr] = Vout;
+              }
+            else{
+                sampleBuffer0[writeCtr] = Vout ;
+            }
+}
+
+void backgroundCalcTask(void * pvParameters){
+  static uint32_t  phaseAcc=0;
+  static float sinAcc=0;
+  static float saxAcc=0;
+  static float prevSinAmp=0;
+  
+  
+  while(1){
+
+	  xSemaphoreTake(sampleBufferSemaphore, portMAX_DELAY);
+      uint32_t writeCtr=0;
+    
+  while( writeCtr < SAMPLE_BUFFER_SIZE/2){
+
+
+      int vol_knob_value=__atomic_load_n(&sysState.knobValues[3].current_knob_value,__ATOMIC_RELAXED);
+      int tune_knob_value=__atomic_load_n(&sysState.knobValues[2].current_knob_value,__ATOMIC_RELAXED);
+      int version_knob_value=__atomic_load_n(&sysState.knobValues[1].current_knob_value,__ATOMIC_RELAXED);
+      bool hasActiveKey=false;
+      int keynum=0;
+      float sinAmp=0;
+      float triAmp=0;
+      for (int i = 0; i < 12; i++) {
+        if (writeCtr< SAMPLE_BUFFER_SIZE/2){
+          
+          bool isactive=__atomic_load_n(&notes.notes[i].active,__ATOMIC_RELAXED);
+
+          if (version_knob_value ==8){
+            if (isactive) {
+                hasActiveKey=true;
+                for (int j=0; j<8; j++){
+                  // Serial.print("here");
+                  if (notes.notes[i].octaves[j]==true &&writeCtr< SAMPLE_BUFFER_SIZE/2 ){
+                    uint32_t stepSize=__atomic_load_n(&notes.notes[i].stepSize,__ATOMIC_RELAXED);
+                    
+                    
+                    if ((j-4)>=0){
+                      phaseAcc+=stepSize << (j-4);
+                      }
+                    else{
+                      phaseAcc+=stepSize >> -(j-4);
+                    }
+                    
+                      uint32_t Vout = (phaseAcc >> 24) - 128;
+                      Vout = (Vout >> (8 - vol_knob_value))+128 ;
+                      writeToSampleBuffer(Vout,writeCtr);
+                      writeCtr+=1;
+                    
+                  }
+                }
+            }
+             
+            
+          }
+          else if(version_knob_value ==7){
+
+              if (isactive) {
+                hasActiveKey=true;
+                sinAcc+=sinPhases[i];
+                if (sinAcc>=M_PI){
+                  sinAcc-=M_PI;
+                }
+                int32_t Vout = static_cast<int32_t>(sin(sinAcc)*127)-128;
+                Vout = Vout >> (8 - vol_knob_value);
+                writeToSampleBuffer(Vout+128, writeCtr);
+                writeCtr+=1;
+
+              }
+
+          }
+          else if (version_knob_value ==6){
+            if (isactive) {
+              hasActiveKey=true;
+              // Serial.print(saxophone_sound(Frequencies[i]));
+              phaseAcc+=int(saxophone_sound(Frequencies[i], &saxAcc)*(pow(2,32)));
+              uint32_t Vout = (phaseAcc >> 24) - 128;
+                Vout = (Vout >> (8 - vol_knob_value))+128 ;
+                writeToSampleBuffer(Vout,writeCtr);
+                writeCtr+=1;
+
+
+            }
+
+          }
+          else if (version_knob_value ==5){
+            float testsinAcc=0;
+            if (isactive) {
+                // testsinAcc=notes.notes[i].sinAcc;
+                keynum+=1;
+                hasActiveKey=true;
+                sinAmp+=generateSin(sinPhases[i],&notes.notes[i].sinAcc);
+
+              }
+            if (i==11 && keynum>0){
+              sinAmp=sinAmp/keynum;
+              // sinAmp= lowPassFilter(sinAmp,prevSinAmp,500.0);
+              // prevSinAmp=sinAmp;
+              uint32_t Vout = static_cast<uint32_t>(sinAmp*127)-128;
+                Vout = Vout >> (8 - vol_knob_value);
+                writeToSampleBuffer(Vout+128, writeCtr);
+                writeCtr+=1;
+            }
+          
+          }
+          else{
+            
+            if (isactive){
+              keynum+=1;
+              hasActiveKey=true;
+              float tmp=generateTriangleWaveValue(Frequencies[i],&notes.notes[i].triAcc);
+              triAmp+=tmp;
+            }
+            if (i==11 && keynum>0){
+              triAmp=triAmp/keynum;
+              uint32_t Vout = static_cast<uint32_t>(triAmp*255)-128;
+                Vout = Vout >> (8 - vol_knob_value);
+                writeToSampleBuffer(Vout+128, writeCtr);
+                writeCtr+=1;
+            }
+
+          }
+        }
+      }
+      if(!hasActiveKey && writeCtr< SAMPLE_BUFFER_SIZE/2){
+            writeToSampleBuffer(0,writeCtr);
+            writeCtr+=1;
+          }
+
+      }
+        }  
+
+ 
+}
+
+
 //Function to set outputs using key matrix
 void setOutMuxBit(const uint8_t bitIdx, const bool value) {
       digitalWrite(REN_PIN,LOW);
@@ -70,15 +221,79 @@ void initial_display(){
     setOutMuxBit(DEN_BIT, HIGH);  //Enable display power supply
 }
 
+// void sampleISR() {
+//   if (sysState.posId == 0 ){
+//     static uint32_t phaseAcc = 0;
+//     phaseAcc = currentStepSize ? phaseAcc + currentStepSize : 0;
+//     int32_t Vout = (phaseAcc >> 24) - 128;
+//     Vout = Vout >> (8 - sysState.knobValues[3].current_knob_value);
+//     analogWrite(OUTR_PIN, Vout + 128);
+//   }
+// }
+
 void sampleISR() {
+  static uint32_t readCtr = 0;
+  int metronome_knob_value=__atomic_load_n(&sysState.knobValues[0].current_knob_value,__ATOMIC_RELAXED);
+  static uint32_t metronomeCounter=0;
   if (sysState.posId == 0 ){
-    static uint32_t phaseAcc = 0;
-    phaseAcc = currentStepSize ? phaseAcc + currentStepSize : 0;
-    int32_t Vout = (phaseAcc >> 24) - 128;
-    Vout = Vout >> (8 - sysState.knobValues[3].current_knob_value);
-    analogWrite(OUTR_PIN, Vout + 128);
+    if (readCtr == SAMPLE_BUFFER_SIZE/2) {
+      readCtr = 0;
+      
+      writeBuffer1 = !writeBuffer1;
+      // Serial.print("gave buffer");
+      xSemaphoreGiveFromISR(sampleBufferSemaphore, NULL);
+      }
+    if (metronome_knob_value!=8 && metronomeCounter>=metronomeTime[7-metronome_knob_value]){ 
+      analogWrite(OUTR_PIN, 255);
+      metronomeCounter=0;
+    }
+    else{
+    if (writeBuffer1){
+      
+      analogWrite(OUTR_PIN, sampleBuffer0[readCtr++]);
+      metronomeCounter+=1;
+      }
+    else{
+      
+      analogWrite(OUTR_PIN, sampleBuffer1[readCtr++]);
+      metronomeCounter+=1;
+
+    }
+    }
   }
+
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 void CAN_RX_ISR (void) {
 	uint8_t RX_Message_ISR[8];
@@ -247,19 +462,35 @@ void scanKeysTask(void * pvParameters) {
     if (sysState.EastDetect[0] && sysState.WestDetect[0]){
       sysState.posId = 0;
       sysState.knobValues[2].current_knob_value = sysState.posId + 3;
+
+
+
+
       for (int i = 0; i < 12; i++){
         if (keys.to_ulong() != 0xFFF){
           if (!keys[i]) {
-          localCurrentStepSize1 = stepSizes[i];
+          notes.notes[i].active = true;
+          notes.notes[i].octaves[sysState.knobValues[2].current_knob_value]=true;
+          // notes.notse[i].oc
+          // localCurrentStepSize1 = stepSizes[i];
+          
+          }
+          else{
+          
+
           }
         }
         else{
-          localCurrentStepSize1 = 0;
+          notes.notes[i].active = false;
+          notes.notes[i].octaves[sysState.knobValues[2].current_knob_value]=false;
+          
+          // localCurrentStepSize1 = 0;
+
         }
       }
-      localCurrentStepSize1 = localCurrentStepSize1 * pow(2, sysState.knobValues[2].current_knob_value - 4);
+      // localCurrentStepSize1 = localCurrentStepSize1 * pow(2, sysState.knobValues[2].current_knob_value - 4);
       // Serial.println(localCurrentStepSize1);
-      __atomic_store_n(&currentStepSize, localCurrentStepSize1, __ATOMIC_RELAXED);
+      // __atomic_store_n(&currentStepSize, localCurrentStepSize1, __ATOMIC_RELAXED);
     }
     // transmit mode, do not play note locally
     else{
@@ -337,35 +568,55 @@ void decodeTask(void * pvParameters) {
   volatile uint32_t localCurrentStepSize2;
   while (1) {
     xQueueReceive(msgInQ, RX_Message, portMAX_DELAY);
+    xSemaphoreTake(sysState.mutex, portMAX_DELAY);
+    xSemaphoreTake(notes.mutex, portMAX_DELAY);
     if (sysState.posId == 0){
       if (RX_Message[0] == 'P'){
+
         sysState.inputs[RX_Message[1]] = 0;
+        notes.notes[RX_Message[1]].active = true;
+        notes.notes[RX_Message[1]].octaves[RX_Message[2]]=true;
+        notes.notes[RX_Message[1]].octavenum+=1;
+
       }
       else if (RX_Message[0] == 'R'){
+
         sysState.inputs[RX_Message[1]] = 1;
-      }
-      keys_1 = extractBits<28, 12>(sysState.inputs, 0, 12);
-      for (int i = 0; i < 12; i++){
-        if (keys_1.to_ulong() != 0xFFF){
-          if (keys_1[i] != previou_keys_1[i]){
-            localCurrentStepSize2 = !keys_1[i] ? stepSizes[i] : 0;
-          }
+        notes.notes[RX_Message[1]].octavenum-=1;
+        notes.notes[RX_Message[1]].octaves[RX_Message[2]]=false;
+        if (notes.notes[RX_Message[1]].octavenum==0){
+          notes.notes[RX_Message[1]].active = false;
         }
-        else{
-          localCurrentStepSize2 = 0;
-        }
+        
+
       }
-      previou_keys_1 = keys_1;
-      localCurrentStepSize2 = localCurrentStepSize2 * pow(2, RX_Message[2] - 4);
+
+      // keys_1 = extractBits<28, 12>(sysState.inputs, 0, 12);
+      // for (int i = 0; i < 12; i++){
+      //   if (keys_1.to_ulong() != 0xFFF){
+      //     if (keys_1[i] != previou_keys_1[i]){
+      //       localCurrentStepSize2 = !keys_1[i] ? stepSizes[i] : 0;
+      //     }
+      //   }
+      //   else{
+      //     localCurrentStepSize2 = 0;
+      //   }
+      // }
+      // // previou_keys_1 = keys_1;
+      // localCurrentStepSize2 = localCurrentStepSize2 * pow(2, RX_Message[2] - 4);
+
       // Serial.println(localCurrentStepSize2);
-      __atomic_store_n(&currentStepSize, localCurrentStepSize2, __ATOMIC_RELAXED);
+      // __atomic_store_n(&currentStepSize, localCurrentStepSize2, __ATOMIC_RELAXED);
     }
+
     // // if board 1 receives a message from board 0, it will send the message back to the board 0
     else if(RX_Message[3] == 0 && sysState.posId == 1
           && (RX_Message[0] == 'R' || RX_Message[0] == 'P')){
         RX_Message[3] = 1;
         xQueueSend( msgOutQ, const_cast<uint8_t*>(RX_Message), portMAX_DELAY);
     }
+              xSemaphoreGive(notes.mutex);
+      xSemaphoreGive(sysState.mutex);
     
     if (RX_Message[0] == 'N'){
       Serial.println("new board request receriaved!");
@@ -392,6 +643,12 @@ void decodeTask(void * pvParameters) {
 
   }
 }
+
+
+
+
+
+
 
 void CAN_TX_Task (void * pvParameters) {
 	uint8_t msgOut[8];
@@ -426,6 +683,9 @@ void setup() {
 
   //Initialise CAN TX semaphore
   CAN_TX_Semaphore = xSemaphoreCreateCounting(3,3);
+  // sample buffer semmaphore
+  sampleBufferSemaphore = xSemaphoreCreateBinary();
+  xSemaphoreGive(sampleBufferSemaphore);
 
   //Initialise CAN Bus
   CAN_Init(false);
@@ -437,7 +697,7 @@ void setup() {
   //Initialise serial port
   Serial.begin(9600);
   Serial.println("Serial port initialised");
-  
+  set_notes();
   sysState.posId = auto_detect_init();
   delay(200);
   initial_display();
@@ -479,10 +739,22 @@ void setup() {
   NULL,			/* Parameter passed into the task */
   1,			/* Task priority */
   &CAN_TX_Handle );	/* Pointer to store the task handle */
+
+  TaskHandle_t BackCalc_Handle = NULL;
+  xTaskCreate(
+  backgroundCalcTask,		/* Function that implements the task */
+  "BackCalc",		/* Text name for the task */
+  64 ,      		/* Stack size in words, not bytes */
+  NULL,			/* Parameter passed into the task */
+  2,			/* Task priority */
+  &BackCalc_Handle );	/* Pointer to store the task handle */
+
+
   
   sysState.mutex = xSemaphoreCreateMutex(); //Create mutex
   vTaskStartScheduler();
 }
 
 void loop() {
+
 }

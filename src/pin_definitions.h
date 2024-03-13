@@ -32,6 +32,18 @@ const int DRST_BIT = 4;
 const int HKOW_BIT = 5;
 const int HKOE_BIT = 6;
 
+
+
+const uint32_t metronomeTime[7] ={
+  22000,
+  11000,
+  5500,
+  2750,
+  1325,
+  610,
+  300
+};
+
 const uint32_t stepSizes[12] = {
   51149156,  //C
   54190643,  //C#
@@ -46,6 +58,67 @@ const uint32_t stepSizes[12] = {
   91137435,  //A#
   96556749   //B
 };
+const uint32_t Frequencies[12] = {
+  261,  //C
+  277,  //C#
+  293,  //D
+  311,  //D#
+  329,  //E
+  349,  //F
+  367,  //F#
+  392,  //G
+  415,  //G#
+  440,  //A
+  466,  //A#
+  494   //B
+};
+const float sinPhases[12] = {
+  0.0745414257,  //C
+  0.079111015,  //C#
+  0.0836806043,  //D
+  0.0888213923,  //D#
+  0.0939621803,  //E
+  0.0996741669,  //F
+  0.104814955,  //F#
+  0.111954938,  //G
+  0.118523723,  //G#
+  0.125663706,  //A
+  0.133089289,  //A#
+  0.14108607   //B
+};
+
+struct note {
+  uint32_t stepSize;
+  uint32_t phaseAcc;
+  float sinAcc;
+  // float triprevVal;
+  // float triLastIncre;
+  bool octaves[8];
+  int octavenum;
+  // std::vector<int> octaves;
+  float triAcc;
+  bool active;
+  
+};
+
+struct {
+  std::array<note, 12> notes;
+  SemaphoreHandle_t mutex;  
+} notes;
+
+void set_notes(){
+  for (int i = 0; i < 12; i++){
+    notes.notes[i].stepSize = stepSizes[i];
+    notes.notes[i].phaseAcc = 0;
+    notes.notes[i].active = false;
+    notes.notes[i].sinAcc = 0;
+    notes.notes[i].octavenum= 0;
+    // notes.notes[i].octaves={};
+
+    Serial.println(notes.notes[i].stepSize);
+  }
+}
+
 
 void set_pin_directions(){
     pinMode(RA0_PIN, OUTPUT);
