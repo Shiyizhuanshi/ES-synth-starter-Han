@@ -30,6 +30,8 @@ TaskHandle_t scanKeysHandle = NULL;
 TaskHandle_t displayUpdateHandle = NULL;
 TaskHandle_t decodeTaskHandle = NULL;
 TaskHandle_t CAN_TX_Handle = NULL;
+TaskHandle_t BackCalc_Handle = NULL;
+
 
 //Struct to hold system state
 struct {
@@ -66,6 +68,7 @@ void writeToSampleBuffer(uint32_t Vout, uint32_t writeCtr){
 }
 
 void backgroundCalcTask(void * pvParameters){
+  Serial.println("backgroundCalcTask started!");
   static uint32_t  phaseAcc=0;
   static float sinAcc=0;
   static float saxAcc=0;
@@ -427,6 +430,7 @@ int auto_detect_init(){
 }
 
 void scanKeysTask(void * pvParameters) {
+  Serial.println("scanKeysTask started!");
   volatile uint32_t localCurrentStepSize1;
   const TickType_t xFrequency1 = 20/portTICK_PERIOD_MS;
   TickType_t xLastWakeTime1 = xTaskGetTickCount();
@@ -515,6 +519,7 @@ void scanKeysTask(void * pvParameters) {
 }
 
 void displayUpdateTask(void * pvParameters) {
+  Serial.println("displayUpdateTask started!");
   const TickType_t xFrequency2 = 100/portTICK_PERIOD_MS;
   TickType_t xLastWakeTime2 = xTaskGetTickCount();
   static uint32_t count = 0;
@@ -563,6 +568,7 @@ void displayUpdateTask(void * pvParameters) {
 }
 
 void decodeTask(void * pvParameters) {
+  Serial.println("decodeTask started!");
   std::bitset<12> keys_1;
   std::bitset<12> previou_keys_1("111111111111");
   volatile uint32_t localCurrentStepSize2;
@@ -644,13 +650,8 @@ void decodeTask(void * pvParameters) {
   }
 }
 
-
-
-
-
-
-
 void CAN_TX_Task (void * pvParameters) {
+  Serial.println("CAN_TX_Task started!");
 	uint8_t msgOut[8];
 	while (1) {
 		xQueueReceive(msgOutQ, msgOut, portMAX_DELAY);
@@ -708,25 +709,10 @@ void setup() {
   Serial.println(sysState.local_boardId);
 
   //Create tasks
-  xTaskCreate(
-  scanKeysTask,		/* Function that implements the task */
-  "scanKeys",		/* Text name for the task */
-  64,      		/* Stack size in words, not bytes */
-  NULL,			/* Parameter passed into the task */
-  3,			/* Task priority */
-  &scanKeysHandle );	/* Pointer to store the task handle */
 
   xTaskCreate(
   displayUpdateTask,		/* Function that implements the task */
   "displayUpdate",		/* Text name for the task */
-  256 ,      		/* Stack size in words, not bytes */
-  NULL,			/* Parameter passed into the task */
-  2,			/* Task priority */
-  &displayUpdateHandle );	/* Pointer to store the task handle */
-
-  xTaskCreate(
-  decodeTask,		/* Function that implements the task */
-  "decode",		/* Text name for the task */
   256 ,      		/* Stack size in words, not bytes */
   NULL,			/* Parameter passed into the task */
   1,			/* Task priority */
@@ -737,20 +723,33 @@ void setup() {
   "CAN_TX",		/* Text name for the task */
   256 ,      		/* Stack size in words, not bytes */
   NULL,			/* Parameter passed into the task */
-  1,			/* Task priority */
+  2,			/* Task priority */
   &CAN_TX_Handle );	/* Pointer to store the task handle */
 
-  TaskHandle_t BackCalc_Handle = NULL;
+  xTaskCreate(
+  decodeTask,		/* Function that implements the task */
+  "decode",		/* Text name for the task */
+  256 ,      		/* Stack size in words, not bytes */
+  NULL,			/* Parameter passed into the task */
+  3,			/* Task priority */
+  &decodeTaskHandle );	/* Pointer to store the task handle */
+
+  xTaskCreate(
+  scanKeysTask,		/* Function that implements the task */
+  "scanKeys",		/* Text name for the task */
+  256,      		/* Stack size in words, not bytes */
+  NULL,			/* Parameter passed into the task */
+  4,			/* Task priority */
+  &scanKeysHandle );	/* Pointer to store the task handle */
+
   xTaskCreate(
   backgroundCalcTask,		/* Function that implements the task */
   "BackCalc",		/* Text name for the task */
-  64 ,      		/* Stack size in words, not bytes */
+  256 ,      		/* Stack size in words, not bytes */
   NULL,			/* Parameter passed into the task */
-  2,			/* Task priority */
+  5,			/* Task priority */
   &BackCalc_Handle );	/* Pointer to store the task handle */
 
-
-  
   sysState.mutex = xSemaphoreCreateMutex(); //Create mutex
   vTaskStartScheduler();
 }
