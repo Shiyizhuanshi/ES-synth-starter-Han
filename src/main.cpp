@@ -264,6 +264,19 @@ void sampleISR() {
     }
     }
   }
+  else{
+      if (readCtr == SAMPLE_BUFFER_SIZE/2) {
+      readCtr = 0;
+      
+      // writeBuffer1 = !writeBuffer1;
+      // Serial.print("gave buffer");
+      xSemaphoreGiveFromISR(sampleBufferSemaphore, NULL);
+      }
+      else{
+        readCtr++;
+      }
+    
+  }
 
 }
 
