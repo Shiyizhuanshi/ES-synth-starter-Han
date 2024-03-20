@@ -9,6 +9,7 @@
 #include "pin_definitions.h"
 #include "read_inputs.h"
 #include "wave_synth.h"
+#include "test_function.h"
 
 //Constants
 const uint32_t interval = 100; //Display update interval
@@ -89,7 +90,7 @@ void writeToSampleBuffer(uint32_t Vout, uint32_t writeCtr){
 void backgroundCalcTask(void * pvParameters){
   static float prevfloatAmp=0;
   while(1){
-    xSemaphoreTake(sampleBufferSemaphore, portMAX_DELAY);
+   xSemaphoreTake(sampleBufferSemaphore, portMAX_DELAY);
     uint32_t writeCtr=0;
     while( writeCtr < SAMPLE_BUFFER_SIZE/2){
       int vol_knob_value=__atomic_load_n(&sysState.knobValues[3].current_knob_value,__ATOMIC_RELAXED);
@@ -97,6 +98,7 @@ void backgroundCalcTask(void * pvParameters){
       bool hasActiveKey=false;
       int keynum=0;
       float floatAmp=0;
+      
 
       for (int i=0; i<96;i++){
         if (writeCtr< SAMPLE_BUFFER_SIZE/2){        
@@ -156,7 +158,8 @@ void backgroundCalcTask(void * pvParameters){
           }
     }
     
-  }
+   }
+
 
 }
 
@@ -542,7 +545,7 @@ void setup() {
   TIM_TypeDef *Instance = TIM1;
   HardwareTimer *sampleTimer = new HardwareTimer(Instance);
 
-  //Initialise sample timer
+  // Initialise sample timer
   sampleTimer->setOverflow(22000, HERTZ_FORMAT);
   sampleTimer->attachInterrupt(sampleISR);
   sampleTimer->resume();
@@ -559,9 +562,10 @@ void setup() {
   CAN_RegisterTX_ISR(CAN_TX_ISR);
   CAN_Start();
 
-  //Initialise serial port
+  // Initialise serial port
   Serial.begin(9600);
   Serial.println("Serial port initialised");
+
   
   sysState.posId = auto_detect_init();
   delay(200);
@@ -569,10 +573,13 @@ void setup() {
   Serial.print("posId: ");
   Serial.println(sysState.posId);
   sysState.knobValues[2].current_knob_value = sysState.posId + 3;
+  // backCalcTime();
+
+  // testSetup();
   Serial.print("UID: ");
   Serial.println(sysState.local_boardId);
 
-  //Create tasks
+  // Create tasks
   xTaskCreate(
   scanKeysTask,		/* Function that implements the task */
   "scanKeys",		/* Text name for the task */

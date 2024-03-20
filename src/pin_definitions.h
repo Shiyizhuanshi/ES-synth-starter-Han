@@ -178,28 +178,28 @@ struct {
 } notes;
 struct ADSR{
   bool on;
-  int attack;
-  int decay;
-  int sustain;
+  int attack; //0-50
+  int decay; //0-50
+  int sustain;//0-50
   //int release;
 };
 struct LFO{
   bool on;
-  int freq;
-  int reduceLFOVolume;
+  int freq;//1-30;
+  int reduceLFOVolume;//1-5;
 };
 struct Metronome{
   bool on;
-  int speed;
+  int speed;//1-10
 };
 struct Lowpass{
   bool on;
-  int freq;
+  int freq;//500-2000
 };
 struct Fade{
   bool on;
-  int sustainTime;
-  int fadeSpeed;
+  int sustainTime; //1-20
+  int fadeSpeed; //1-20
 };
 struct {
   Fade fade;
