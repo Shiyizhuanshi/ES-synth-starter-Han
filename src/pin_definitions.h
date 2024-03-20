@@ -1,4 +1,7 @@
 #include <Arduino.h>
+#include <U8g2lib.h>
+#include <bitset>
+#include <string>
 
 #ifndef PIN_DEFINITIONS_H
 #define PIN_DEFINITIONS_H
@@ -23,6 +26,9 @@ TaskHandle_t scanKeysHandle = NULL;
 TaskHandle_t displayUpdateHandle = NULL;
 TaskHandle_t decodeTaskHandle = NULL;
 TaskHandle_t CAN_TX_Handle = NULL;
+TaskHandle_t BackCalc_Handle = NULL;
+TaskHandle_t scanJoystick_Handle = NULL;
+
 //Display driver object
 U8G2_SSD1305_128X32_NONAME_F_HW_I2C u8g2(U8G2_R0);
 
@@ -34,23 +40,31 @@ SemaphoreHandle_t sampleBufferSemaphore;
 volatile bool writeBuffer1 = false;
 
 const std::size_t inputSize = 28;
+std::string movement;
+
+std::string bottomBar_menu[4] = {"Menu", "Wave", "Tone", "Vol"};
+std::string waveNames[9] = {"Saw", "Sin", "Squ", "Tri", "Pia", "Saxo", "Bell", "Alar", "None"};
+std::string menu_first_level[6] = {"Met", "Fade", "LFO", "ADSR", "LPF", "exit"};
+
 
 struct knob{
   int current_knob_value = 8;
   int lastIncrement = 0;
-  int clickState = 0;
+  bool clickState = 0;
 };
 
 //Struct to hold system state
 struct {
-  std::bitset<28> inputs;
+  std::bitset<inputSize> inputs;
   SemaphoreHandle_t mutex;  
   std::array<knob, 4> knobValues;
   uint8_t local_boardId = HAL_GetUIDw0();
-  int posId = 0;
   std::bitset<1> WestDetect;
   std::bitset<1> EastDetect;
+  std::string currentMenu = "Main";
+  int joystickState = 0;
   bool singleMode = true;
+  int posId = 0;
 } sysState;
 
 struct note {
@@ -65,12 +79,12 @@ struct {
   std::array<note, 96> notes;
   SemaphoreHandle_t mutex;  
 } notes;
+
 struct ADSR{
   bool on;
   int attack;
   int decay;
   int sustain;
-  //int release;
 };
 struct LFO{
   bool on;
@@ -82,20 +96,23 @@ struct Metronome{
   int speed;
 };
 struct Lowpass{
-  bool on;
+  int on;
   int freq;
 };
 struct Fade{
-  bool on;
+  int on;
   int sustainTime;
   int fadeSpeed;
 };
-struct {
+struct setting{
+  Metronome metronome;
   Fade fade;
-  Lowpass lowpass;
   LFO lfo;
   ADSR adsr;
-  Metronome metronome;
+  Lowpass lowpass;
+  int volume;
+  int tune;
+  int waveIndex;
 }settings;
 
 // Row select and enable
@@ -124,6 +141,21 @@ const int DEN_BIT = 3;
 const int DRST_BIT = 4;
 const int HKOW_BIT = 5;
 const int HKOE_BIT = 6;
+
+std::array<std::string, 12> noteNames = {
+  "C",
+  "C#",
+  "D",
+  "D#",
+  "E",
+  "F",
+  "F#",
+  "G",
+  "G#",
+  "A",
+  "A#",
+  "B"
+};
 
 const uint32_t metronomeTime[7] ={
   22000,
@@ -271,7 +303,9 @@ void init_settings(){
   settings.lfo.freq=20;
   settings.lfo.on=false;
   settings.lfo.reduceLFOVolume=2;
-
+  settings.volume=8;
+  settings.tune=4;
+  settings.waveIndex=0;
 }
 
 
