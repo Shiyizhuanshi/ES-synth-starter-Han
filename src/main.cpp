@@ -162,6 +162,11 @@ int auto_detect_init(){
   std::bitset<1> WestDetect;
   std::bitset<1> EastDetect;
   
+  u8g2.clearBuffer();
+  u8g2.setFont(u8g2_font_ncenB08_tr);
+  u8g2.setCursor(20, 20);
+  u8g2.print("Auto Detecting...");
+  u8g2.sendBuffer();
   for (int i = 0; i < 100; i++){
       send_handshake_signal(1,1);
       delay(30);
@@ -403,87 +408,93 @@ void displayUpdateTask(void * pvParameters) {
     u8g2.clearBuffer();
     u8g2.setFont(u8g2_font_ncenB08_tr);
 
-    if (counter != 0){
-      counter --;
-    }
-    xSemaphoreTake(sysState.mutex, portMAX_DELAY);
-    
-    if(sysState.knobValues[0].clickState){
-      u8g2.setFont(u8g2_font_6x10_tr);
-      if (movement == "down"){
-        index += 3;
-      }
-      else if (movement == "up"){
-        index -= 3;
-      }
-      else if (movement == "right"){
-        index += 1;
-      }
-      else if (movement == "left"){
-        index -= 1;
-      }
-      index = constrain(index, 0, 5);
-
-      for (int i = 0; i < 6; i++){
-        if (i< 3){
-          u8g2.drawStr(10 + 35 * i, 14, menu_first_level[i].c_str());
-        }
-        else{
-          u8g2.drawStr(10 + 35 * (i-3), 25, menu_first_level[i].c_str());
-        }
-        if (index == i){
-          int x_pos = (i < 3) ? 10 + 35 * i : 10 + 35 * (i-3);
-          int y_pos = (i < 3) ? 5 : 15;
-          u8g2.drawFrame(x_pos-3, y_pos, 32, 12);
-        }
-      }
-
-      if (sysState.joystickState){
-        menu(index, settings);
-      }
+    if (sysState.posId != 0){
+      u8g2.setCursor(30, 20);
+      u8g2.print("Slave board");
     }
     else{
-      sysState.currentMenu = "Main";
-      u8g2.setCursor(45, 10);
-      u8g2.print("StackY");
-      u8g2.setFont(u8g2_font_5x8_tr);
-      for (int i = 0; i < 4; i++){
-        u8g2.drawFrame(8+30*i, 20, 25, 20);
-        if (i !=0 && 
-           (extractBits<inputSize, 2>(sysState.inputs, 12, 2) != previous_knob3 ||
-            extractBits<inputSize, 2>(sysState.inputs, 14, 2) != previous_knob2 ||
-            extractBits<inputSize, 2>(sysState.inputs, 16, 2) != previous_knob1)){
-          counter = stay_time/100;
+      if (counter != 0){
+        counter --;
+      }
+      xSemaphoreTake(sysState.mutex, portMAX_DELAY);
+      
+      if(sysState.knobValues[0].clickState){
+        u8g2.setFont(u8g2_font_6x10_tr);
+        if (movement == "down"){
+          index += 3;
         }
-        if (counter != 0  && i ==3){
-          u8g2.drawStr(10+30*i, 29, std::to_string(settings.volume).c_str());
+        else if (movement == "up"){
+          index -= 3;
         }
-        else if (counter != 0 && i ==2 ){
-          u8g2.drawStr(10+30*i, 29, std::to_string(settings.tune).c_str());
+        else if (movement == "right"){
+          index += 1;
         }
-        else if (counter != 0 && i ==1 ){
-          u8g2.drawStr(10+30*i, 29, waveNames[settings.waveIndex].c_str());
+        else if (movement == "left"){
+          index -= 1;
         }
-        else{
-          u8g2.drawStr(10+30*i, 29, bottomBar_menu[i].c_str());
+        index = constrain(index, 0, 5);
+
+        for (int i = 0; i < 6; i++){
+          if (i< 3){
+            u8g2.drawStr(10 + 35 * i, 14, menu_first_level[i].c_str());
+          }
+          else{
+            u8g2.drawStr(10 + 35 * (i-3), 25, menu_first_level[i].c_str());
+          }
+          if (index == i){
+            int x_pos = (i < 3) ? 10 + 35 * i : 10 + 35 * (i-3);
+            int y_pos = (i < 3) ? 5 : 15;
+            u8g2.drawFrame(x_pos-3, y_pos, 32, 12);
+          }
+        }
+
+        if (sysState.joystickState){
+          menu(index, settings);
         }
       }
-      //display pressed keys
-      std::vector<std::string> pressedKeys;
-      for (int i = 0; i < 12; i++){
-        if (sysState.inputs[i] == 0){
-          pressedKeys.push_back(noteNames[i]);
+      else{
+        sysState.currentMenu = "Main";
+        u8g2.setCursor(45, 10);
+        u8g2.print("StackY");
+        u8g2.setFont(u8g2_font_5x8_tr);
+        for (int i = 0; i < 4; i++){
+          u8g2.drawFrame(8+30*i, 20, 25, 20);
+          if (i !=0 && 
+            (extractBits<inputSize, 2>(sysState.inputs, 12, 2) != previous_knob3 ||
+              extractBits<inputSize, 2>(sysState.inputs, 14, 2) != previous_knob2 ||
+              extractBits<inputSize, 2>(sysState.inputs, 16, 2) != previous_knob1)){
+            counter = stay_time/100;
+          }
+          if (counter != 0  && i ==3){
+            u8g2.drawStr(10+30*i, 29, std::to_string(settings.volume).c_str());
+          }
+          else if (counter != 0 && i ==2 ){
+            u8g2.drawStr(10+30*i, 29, std::to_string(settings.tune).c_str());
+          }
+          else if (counter != 0 && i ==1 ){
+            u8g2.drawStr(10+30*i, 29, waveNames[settings.waveIndex].c_str());
+          }
+          else{
+            u8g2.drawStr(10+30*i, 29, bottomBar_menu[i].c_str());
+          }
+        }
+        //display pressed keys
+        std::vector<std::string> pressedKeys;
+        for (int i = 0; i < 12; i++){
+          if (sysState.inputs[i] == 0){
+            pressedKeys.push_back(noteNames[i]);
+          }
+        }
+        for (int i = 0; i < pressedKeys.size(); i++){
+          u8g2.setCursor(10+ 10*i, 18);
+          u8g2.print(pressedKeys[i].c_str());
         }
       }
-      for (int i = 0; i < pressedKeys.size(); i++){
-        u8g2.setCursor(10+ 10*i, 18);
-        u8g2.print(pressedKeys[i].c_str());
-      }
+      previous_knob1 = extractBits<inputSize, 2>(sysState.inputs, 16, 2);
+      previous_knob2 = extractBits<inputSize, 2>(sysState.inputs, 14, 2);
+      previous_knob3 = extractBits<inputSize, 2>(sysState.inputs, 12, 2);
+      xSemaphoreGive(sysState.mutex);
     }
-    previous_knob1 = extractBits<inputSize, 2>(sysState.inputs, 16, 2);
-    previous_knob2 = extractBits<inputSize, 2>(sysState.inputs, 14, 2);
-    previous_knob3 = extractBits<inputSize, 2>(sysState.inputs, 12, 2);
-    xSemaphoreGive(sysState.mutex);
     u8g2.sendBuffer();
     digitalToggle(LED_BUILTIN);
   }
