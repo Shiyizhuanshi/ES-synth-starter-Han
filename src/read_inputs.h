@@ -6,14 +6,6 @@
 #ifndef READ_INPUTS_H
 #define READ_INPUTS_H
 
-const std::size_t inputSize = 28;
-
-struct knob{
-  int current_knob_value = 8;
-  int lastIncrement = 0;
-  int clickState = 0;
-};
-
 void setRow(uint8_t rowIdx){
   digitalWrite(REN_PIN, LOW);
   digitalWrite(RA0_PIN, rowIdx & 0x01);

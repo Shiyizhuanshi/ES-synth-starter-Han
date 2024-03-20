@@ -10,72 +10,6 @@
 #include "read_inputs.h"
 #include "wave_synth.h"
 
-//Constants
-const uint32_t interval = 100; //Display update interval
-
-uint32_t ID = 0x123; //CAN ID
-uint8_t RX_Message[8] = {0};  //CAN RX message
-volatile uint8_t TX_Message[8] = {0}; //CAN TX message
-
-//Create message input and output queues
-//36 messages of 8 bytes, each message takes around 0.7ms to process
-QueueHandle_t msgInQ = xQueueCreate(36,8);; // Message input queue
-QueueHandle_t msgOutQ = xQueueCreate(36,8);; // Message output queue
-
-SemaphoreHandle_t CAN_TX_Semaphore; //CAN TX semaphore
-
-//Create task handles
-TaskHandle_t scanKeysHandle = NULL;
-TaskHandle_t displayUpdateHandle = NULL;
-TaskHandle_t decodeTaskHandle = NULL;
-TaskHandle_t CAN_TX_Handle = NULL;
-
-//Struct to hold system state
-struct {
-  std::bitset<28> inputs;
-  SemaphoreHandle_t mutex;  
-  std::array<knob, 4> knobValues;
-  uint8_t local_boardId = HAL_GetUIDw0();
-  int posId = 0;
-  std::bitset<1> WestDetect;
-  std::bitset<1> EastDetect;
-  bool singleMode = true;
-} sysState;
-
-// volatile uint32_t currentStepSize;
-
-const uint32_t sampleRate = 22000;  //Sample rate
-
-//Display driver object
-U8G2_SSD1305_128X32_NONAME_F_HW_I2C u8g2(U8G2_R0);
-
-//Function to set outputs using key matrix
-void setOutMuxBit(const uint8_t bitIdx, const bool value) {
-      digitalWrite(REN_PIN,LOW);
-      digitalWrite(RA0_PIN, bitIdx & 0x01);
-      digitalWrite(RA1_PIN, bitIdx & 0x02);
-      digitalWrite(RA2_PIN, bitIdx & 0x04);
-      digitalWrite(OUT_PIN,value);
-      digitalWrite(REN_PIN,HIGH);
-      delayMicroseconds(2);
-      digitalWrite(REN_PIN,LOW);
-}
-
-
-void initial_display(){
-    setOutMuxBit(DRST_BIT, LOW);  //Assert display logic reset
-    delayMicroseconds(2);
-    setOutMuxBit(DRST_BIT, HIGH);  //Release display logic reset
-    u8g2.begin();
-    u8g2.setFont(u8g2_font_ncenB08_tr);
-    setOutMuxBit(DEN_BIT, HIGH);  //Enable display power supply
-}
-const int SAMPLE_BUFFER_SIZE =1100;
-uint8_t sampleBuffer0[SAMPLE_BUFFER_SIZE/2];
-uint8_t sampleBuffer1[SAMPLE_BUFFER_SIZE/2];
-SemaphoreHandle_t sampleBufferSemaphore;
-volatile bool writeBuffer1 = false;
-
 void writeToSampleBuffer(uint32_t Vout, uint32_t writeCtr){
   if (writeBuffer1){
                 sampleBuffer1[writeCtr] = Vout;
@@ -85,7 +19,6 @@ void writeToSampleBuffer(uint32_t Vout, uint32_t writeCtr){
             }
 }
 
-// std::string waveNames[9] = {"Saw", "Sin", "Squ", "Tri", "Pia", "Saxo", "Bell", "Alar", "None"};
 void backgroundCalcTask(void * pvParameters){
   static float prevfloatAmp=0;
   while(1){

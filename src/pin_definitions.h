@@ -1,10 +1,102 @@
-// pin_definitions.h
-
 #include <Arduino.h>
 
 #ifndef PIN_DEFINITIONS_H
 #define PIN_DEFINITIONS_H
 #define SAMPLE_RATE 22000
+
+//constants
+const uint32_t sampleRate = 22000;  //Sample rate
+
+uint32_t ID = 0x123; //CAN ID
+uint8_t RX_Message[8] = {0};  //CAN RX message
+volatile uint8_t TX_Message[8] = {0}; //CAN TX message
+
+//Create message input and output queues
+//36 messages of 8 bytes, each message takes around 0.7ms to process
+QueueHandle_t msgInQ = xQueueCreate(36,8);; // Message input queue
+QueueHandle_t msgOutQ = xQueueCreate(36,8);; // Message output queue
+
+SemaphoreHandle_t CAN_TX_Semaphore; //CAN TX semaphore
+
+//Create task handles
+TaskHandle_t scanKeysHandle = NULL;
+TaskHandle_t displayUpdateHandle = NULL;
+TaskHandle_t decodeTaskHandle = NULL;
+TaskHandle_t CAN_TX_Handle = NULL;
+//Display driver object
+U8G2_SSD1305_128X32_NONAME_F_HW_I2C u8g2(U8G2_R0);
+
+
+const int SAMPLE_BUFFER_SIZE =1100;
+uint8_t sampleBuffer0[SAMPLE_BUFFER_SIZE/2];
+uint8_t sampleBuffer1[SAMPLE_BUFFER_SIZE/2];
+SemaphoreHandle_t sampleBufferSemaphore;
+volatile bool writeBuffer1 = false;
+
+const std::size_t inputSize = 28;
+
+struct knob{
+  int current_knob_value = 8;
+  int lastIncrement = 0;
+  int clickState = 0;
+};
+
+//Struct to hold system state
+struct {
+  std::bitset<28> inputs;
+  SemaphoreHandle_t mutex;  
+  std::array<knob, 4> knobValues;
+  uint8_t local_boardId = HAL_GetUIDw0();
+  int posId = 0;
+  std::bitset<1> WestDetect;
+  std::bitset<1> EastDetect;
+  bool singleMode = true;
+} sysState;
+
+struct note {
+  uint32_t stepSize;
+  uint32_t phaseAcc;
+  float floatPhaseAcc;
+  int pressedCount;
+  bool active;
+};
+
+struct {
+  std::array<note, 96> notes;
+  SemaphoreHandle_t mutex;  
+} notes;
+struct ADSR{
+  bool on;
+  int attack;
+  int decay;
+  int sustain;
+  //int release;
+};
+struct LFO{
+  bool on;
+  int freq;
+  int reduceLFOVolume;
+};
+struct Metronome{
+  bool on;
+  int speed;
+};
+struct Lowpass{
+  bool on;
+  int freq;
+};
+struct Fade{
+  bool on;
+  int sustainTime;
+  int fadeSpeed;
+};
+struct {
+  Fade fade;
+  Lowpass lowpass;
+  LFO lfo;
+  ADSR adsr;
+  Metronome metronome;
+}settings;
 
 // Row select and enable
 const int RA0_PIN = D3;
@@ -156,7 +248,6 @@ float noteFrequencies[96]={
     7902.13   // B8
 };
 
-
 float notePhases[96];
 
 void generatePhaseLUT(){
@@ -164,52 +255,6 @@ void generatePhaseLUT(){
     notePhases[i]=noteFrequencies[i]*M_PI*2/SAMPLE_RATE;
   }
 }
-struct note {
-  uint32_t stepSize;
-  uint32_t phaseAcc;
-  float floatPhaseAcc;
-  int pressedCount;
-  bool active;
-};
-
-struct {
-  std::array<note, 96> notes;
-  SemaphoreHandle_t mutex;  
-} notes;
-struct ADSR{
-  bool on;
-  int attack;
-  int decay;
-  int sustain;
-  //int release;
-};
-struct LFO{
-  bool on;
-  int freq;
-  int reduceLFOVolume;
-};
-struct Metronome{
-  bool on;
-  int speed;
-};
-struct Lowpass{
-  bool on;
-  int freq;
-};
-struct Fade{
-  bool on;
-  int sustainTime;
-  int fadeSpeed;
-};
-struct {
-  Fade fade;
-  Lowpass lowpass;
-  LFO lfo;
-  ADSR adsr;
-  Metronome metronome;
-}settings;
-
-
 
 void init_settings(){
   settings.fade.on=false;
@@ -230,7 +275,6 @@ void init_settings(){
 }
 
 
-
 void set_notes(){
   for (int i = 0; i < 96; i++){
     // notes.notes[i].stepSize = stepSizes[i];
@@ -240,9 +284,6 @@ void set_notes(){
     // Serial.println(notes.notes[i].stepSize);
   }
 }
-
-
-
 
 void set_pin_directions(){
     pinMode(RA0_PIN, OUTPUT);
@@ -261,6 +302,27 @@ void set_pin_directions(){
     pinMode(JOYX_PIN, INPUT);
     pinMode(JOYY_PIN, INPUT);
 }
+
+void setOutMuxBit(const uint8_t bitIdx, const bool value) {
+      digitalWrite(REN_PIN,LOW);
+      digitalWrite(RA0_PIN, bitIdx & 0x01);
+      digitalWrite(RA1_PIN, bitIdx & 0x02);
+      digitalWrite(RA2_PIN, bitIdx & 0x04);
+      digitalWrite(OUT_PIN,value);
+      digitalWrite(REN_PIN,HIGH);
+      delayMicroseconds(2);
+      digitalWrite(REN_PIN,LOW);
+}
+
+void initial_display(){
+    setOutMuxBit(DRST_BIT, LOW);  //Assert display logic reset
+    delayMicroseconds(2);
+    setOutMuxBit(DRST_BIT, HIGH);  //Release display logic reset
+    u8g2.begin();
+    u8g2.setFont(u8g2_font_ncenB08_tr);
+    setOutMuxBit(DEN_BIT, HIGH);  //Enable display power supply
+}
+
 float pianoTable[256] = {
     0.000000, 0.024541, 0.049068, 0.073565, 0.098017, 0.122411, 0.146730, 0.170962,
     0.195090, 0.219101, 0.242980, 0.266713, 0.290285, 0.313682, 0.336890, 0.359895,
