@@ -177,14 +177,15 @@ struct {
   SemaphoreHandle_t mutex;  
 } notes;
 
-// void set_notes(){
-//   for (int i = 0; i < 12; i++){
-//     notes.notes[i].stepSize = stepSizes[i];
-//     notes.notes[i].phaseAcc = 0;
-//     notes.notes[i].active = false;
-//     Serial.println(notes.notes[i].stepSize);
-//   }
-// }
+void set_notes(){
+  for (int i = 0; i < 96; i++){
+    // notes.notes[i].stepSize = stepSizes[i];
+    notes.notes[i].phaseAcc = 0;
+    notes.notes[i].floatPhaseAcc=0;
+    notes.notes[i].active = false;
+    // Serial.println(notes.notes[i].stepSize);
+  }
+}
 
 
 
