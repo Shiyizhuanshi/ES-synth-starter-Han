@@ -122,7 +122,10 @@ void scanKeysTask(void * pvParameters) {
   std::bitset<12> keys;
   std::bitset<8> current_knobs;
   std::bitset<4> current_knobs_click;
-  std::bitset<1> joystickClick;
+
+  std::bitset<1> currentJoystickState{"0"};
+  std::bitset<1> oldJoystickState{"0"};
+
   
   
   std::bitset<12> previous_keys("111111111111");
@@ -137,7 +140,11 @@ void scanKeysTask(void * pvParameters) {
     keys = extractBits<inputSize, 12>(sysState.inputs, 0, 12);
     current_knobs = extractBits<inputSize, 8>(sysState.inputs, 12, 8);
     current_knobs_click = extractBits<inputSize, 4>(sysState.inputs, 20, 2).to_ulong() << 2 | extractBits<inputSize, 4>(sysState.inputs, 24, 2).to_ulong();
-    sysState.joystickState = extractBits<inputSize, 1>(sysState.inputs, 22, 1).to_ulong();
+    currentJoystickState = extractBits<inputSize, 1>(sysState.inputs, 22, 1).to_ulong();
+    Serial.println(currentJoystickState.to_ulong());
+    if (currentJoystickState != oldJoystickState && currentJoystickState == 0){
+      sysState.joystickState = !sysState.joystickState;
+    }
     // joystickX = analogRead(JOYX_PIN);
     // joystickY = analogRead(JOYY_PIN);
     // Serial.print(joystickX);
@@ -171,6 +178,7 @@ void scanKeysTask(void * pvParameters) {
     previous_keys = keys;
     previous_knobs = current_knobs;
     previous_knobs_click = current_knobs_click;
+    oldJoystickState = currentJoystickState;
     // __atomic_store_n(&currentStepSize, localCurrentStepSize, __ATOMIC_RELAXED);
   }
 }
@@ -181,6 +189,8 @@ void displayUpdateTask(void * pvParameters) {
   static uint32_t count = 0;
   int posX = 0;
   int posY = 0;
+  int index = 0;
+  int iconsPos[3] = {624, 416, 87};
   while (1) {
     vTaskDelayUntil( &xLastWakeTime2, xFrequency2);
     u8g2.clearBuffer();
@@ -194,13 +204,32 @@ void displayUpdateTask(void * pvParameters) {
     //   u8g2.print(sysState.inputs[i]);
     // }
     if (sysState.knobValues[0].clickState){
-      u8g2.setCursor(10, 10);
-      u8g2.print("Position: ");
+      u8g2.setFont(u8g2_font_streamline_all_t);
+      if (movement == "right"){
+        index += 1;
+      }
+      else if (movement == "left"){
+        index -= 1;
+      }
+      index = constrain(index, 0, 2);
 
-      u8g2.drawFrame(70, 2, 8, 8);
-      u8g2.drawFrame(80, 2, 8, 8);
-      u8g2.drawFrame(90, 2, 8, 8);
-      u8g2.drawBox(100, 2, 8, 8);
+      for (int i = 0; i < 3; i++){
+        u8g2.drawGlyph(40*i+10, 28, iconsPos[i]);
+        if (index == i ){
+          u8g2.drawFrame(40*i+10-3, 5, 27, 27);
+        }
+      }
+      if (sysState.joystickState){
+        u8g2.clearBuffer();
+        u8g2.setFont(u8g2_font_ncenB08_tr);
+        u8g2.setCursor(10, 10);
+        u8g2.print("Joystick pressed");
+      }
+      // u8g2.drawFrame(7,5,27,27);
+      // u8g2.drawGlyph(10, 28, 624);
+      // u8g2.drawGlyph(50, 28, 416);
+      // u8g2.drawGlyph(90, 28, 87);
+      
     }
     else if (sysState.knobValues[1].clickState){
       if (movement == "right"){
