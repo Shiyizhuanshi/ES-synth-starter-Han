@@ -176,6 +176,60 @@ struct {
   std::array<note, 96> notes;
   SemaphoreHandle_t mutex;  
 } notes;
+struct ADSR{
+  bool on;
+  int attack;
+  int decay;
+  int sustain;
+  //int release;
+};
+struct LFO{
+  bool on;
+  int freq;
+  int reduceLFOVolume;
+};
+struct Metronome{
+  bool on;
+  int speed;
+};
+struct Lowpass{
+  bool on;
+  int freq;
+};
+struct Fade{
+  bool on;
+  int sustainTime;
+  int fadeSpeed;
+};
+struct {
+  Fade fade;
+  Lowpass lowpass;
+  LFO lfo;
+  ADSR adsr;
+  Metronome metronome;
+}settings;
+
+
+
+void init_settings(){
+  settings.fade.on=false;
+  settings.fade.fadeSpeed=2;
+  settings.fade.sustainTime=3;
+  settings.adsr.on=false;
+  settings.adsr.attack=1;
+  settings.adsr.decay=4;
+  settings.adsr.sustain=8;
+  settings.lowpass.on=false;
+  settings.lowpass.freq=500;
+  settings.metronome.on=false;
+  settings.metronome.speed=8;
+  settings.lfo.freq=20;
+  settings.lfo.on=false;
+  settings.lfo.reduceLFOVolume=2;
+
+}
+
+
 
 void set_notes(){
   for (int i = 0; i < 96; i++){

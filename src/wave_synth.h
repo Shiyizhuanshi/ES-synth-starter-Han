@@ -7,6 +7,7 @@
 #define TABLE_SIZE 256
 #define PI M_PI
 
+
 // ADSR envelope parameters
 float attack_time = 0.1;
 float decay_time = 0.2;
@@ -26,8 +27,6 @@ float lfo_depth = 0.01;
 float noise_level = 0.1;
 float noise_filter_cutoff = 0.8;
 
-float lfoFreq=10.0;
-float lfoPhase=lfoFreq*M_PI*2/SAMPLE_RATE;
 
 
 
@@ -45,30 +44,8 @@ float lfoPhase=lfoFreq*M_PI*2/SAMPLE_RATE;
 
 
 
-// Function to generate a sawtooth wave
-float sawtooth(float phase) {
-    return 2.0 * (phase - floor(phase + 0.5));
-}
 
-// Function to apply ADSR envelope
-float adsr_envelope(float time, float duration) {
-    float envelope = 0.0;
-    float attack_end = attack_time;
-    float decay_end = attack_end + decay_time;
-    float sustain_end = duration - release_time;
 
-    if (time < attack_end) {
-        envelope = time / attack_end;
-    } else if (time < decay_end) {
-        envelope = 1.0 - (time - attack_end) / decay_time * (1.0 - sustain_level);
-    } else if (time < sustain_end) {
-        envelope = sustain_level;
-    } else {
-        envelope = sustain_level * (1.0 - (time - sustain_end) / release_time);
-    }
-
-    return envelope;
-}
 
 
 float lowPassFilter(float cur, float prev, float cutoffFreq) {
@@ -94,53 +71,8 @@ float low_pass_filter(float input, float cutoff, float resonance, float* state1,
     return output;
 }
 
-// Function to generate a saxophone-like sound
-float saxophone_sound( float frequency, float* saxAcc) {
-    float phase = 0.0;
-    float sample = 0.0;
-    float lfo = 0.0;
-    float filter_state1 = 0.0;
-    float filter_state2 =0.0;
-    float noise = 0.0;
-    float time=0.1;
-    float duration=1;
 
 
-    // Calculate the phase increment based on the desired frequency
-    float phase_increment = frequency / SAMPLE_RATE;
-
-    // Calculate the LFO value for pitch modulation
-    // lfo = sin(2.0 * M_PI * lfo_frequency * time) * lfo_depth;
-
-    // Generate the sawtooth wave with pitch modulation
-    // phase += phase_increment + lfo;
-    // phase += phase_increment;
-
-    // lfo = sin(2.0 * M_PI * lfo_frequency * time) * lfo_depth;
-
-    // Generate the sawtooth wave with pitch modulation
-    *saxAcc += phase_increment;
-    if (*saxAcc >= 1.0) {
-        *saxAcc -= 1.0;
-    }
-    sample = sawtooth(*saxAcc);
-    // sample = sawtooth(phase_increment);
-
-    // Apply the ADSR envelope
-    float envelope = adsr_envelope(time, duration);
-    sample *= envelope;
-
-    // Apply the low-pass filter with envelope modulation
-    float filter_cutoff_mod = filter_cutoff + envelope * filter_env_amount;
-    sample = low_pass_filter(sample, filter_cutoff_mod, filter_resonance, &filter_state1,&filter_state2);
-
-    // // Generate noise for breath and air flow
-    // noise = (float)rand() / (float)RAND_MAX * 2.0 - 1.0;
-    // noise = low_pass_filter(noise, noise_filter_cutoff, 0.5, &filter_state);
-    // sample += noise * noise_level;
-
-    return sample;
-}
 
 float generateTriangleWave( float frequency ){
     float amplitude=0.5;
@@ -174,7 +106,6 @@ float bhaskaraSin(float x) {
 }
 float generateSin( float sinPhase, float* phase){
     float testsinAcc=*phase;
-                
     testsinAcc+=sinPhase;
     if (testsinAcc>=M_PI){
         testsinAcc-=M_PI;
@@ -194,7 +125,9 @@ float getSample(float phaseIcre, float* phaseAcc, float table[]) {
     return table[index];
 }
 float LFOAcc=0;
-float generateLFO(int reduceVal){
+float generateLFO(int reduceVal,float lfoFreq){
+    // float lfoFreq=10.0;
+    float lfoPhase=lfoFreq*M_PI*2/SAMPLE_RATE;
     float amp=getSample(lfoPhase,&LFOAcc,sineTable)/reduceVal;
     return amp;
 }
@@ -206,24 +139,33 @@ float generateLFO(int reduceVal){
 //         sinTable[i]=sin(step*i);
 //     }
 // }
-int calcEnvelope(int pressedCount){
-    int press=3;
-    int decay=4;
-    if (pressedCount<press){
+int calcFade(int pressedCount, int decaytime, int decayspeed){
+    // int press=3;
+    // int decay=4;
+    if (pressedCount<decaytime){
         return 0;
     }
     else{
-        return int( (pressedCount-press)/3);
+        return int( (pressedCount-decaytime)/decayspeed);
     }
 
 }
-u_int32_t calcSawtoothVout(u_int32_t phaseAcc,int volume, int i){
-    uint32_t Vout = (phaseAcc >> 24) - 128;
-    int v=calcEnvelope(notes.notes[i].pressedCount);
-    int volshift=8 - volume+v;
+float calcSawtoothAmp(float *phaseAcc,int volume, int i){
+    // uint32_t stepSize=__atomic_load_n(&stepSizes[i%12],__ATOMIC_RELAXED); 
+    float stepsize=notePhases[i];
 
-    Vout = ((Vout+128) >> (volshift)) ;
-    return Vout;
+    // int tune=(i-i%12)/12+1;
+    // if ((tune-4)>=0){
+    //     *phaseAcc+=stepSize << (tune-4);}
+    // else{
+    //     *phaseAcc+=stepSize >> -(tune-4);
+    // }
+    *phaseAcc+=stepsize;
+    float amp=*phaseAcc;
+    // uint32_t Vout = (*phaseAcc >> 24) - 128;
+    // Vout = (Vout+128) >> (8 - volume)) ;
+
+    return amp;
 }
 u_int32_t calcNoProcessSawtoothVout(u_int32_t phaseAcc,int volume, int tune){
     
@@ -238,21 +180,20 @@ u_int32_t calcNoProcessSawtoothVout(u_int32_t phaseAcc,int volume, int tune){
 
 
 
-u_int32_t calcOtherVout(float Amp,int volume, int i){
-    uint32_t Vout = static_cast<uint32_t>(Amp *127) - 128;
-    int v=calcEnvelope(notes.notes[i].pressedCount);
-    int volshift=8 - volume+v;
-    if (volshift>=0){
+// u_int32_t calcOtherVout(float Amp,int volume, int i){
+//     uint32_t Vout = static_cast<uint32_t>(Amp *127) - 128;
+//     int v=calcDecay(notes.notes[i].pressedCount);
+//     int volshift=8 - volume+v;
+//     if (volshift>=0){
 
-    Vout = ((Vout+128) >> (volshift)) ;}
-    else {Vout = ((Vout+128) << -(volshift)) ;}
+//     Vout = ((Vout+128) >> (volshift)) ;}
+//     else {Vout = ((Vout+128) << -(volshift)) ;}
 
-    return Vout;
-}
+//     return Vout;
+// }
 
 u_int32_t calcNoEnvelopeVout(float Amp,int volume){
     uint32_t Vout = static_cast<uint32_t>(Amp *127) - 128;
-    // int v=calcEnvelope(notes.notes[i].pressedCount);
     int volshift=8 - volume;
     if (volshift>=0){
 
@@ -262,12 +203,23 @@ u_int32_t calcNoEnvelopeVout(float Amp,int volume){
     return Vout;
 }
 
+u_int32_t calcVout(float Amp,int volume, int vshift){
+    uint32_t Vout = static_cast<uint32_t>(Amp *255) - 128;
+    int volshift=8 - volume+vshift;
+    if (volshift>=0){
+
+    Vout = ((Vout+128) >> (volshift)) ;}
+    else {Vout = ((Vout+128) << -(volshift)) ;}
+
+    return Vout;
+}
 
 
-int adsrPiano(int pressedCount){
-    int attack=1;
-    int decay=4;
-    int sustain=10;
+
+int adsrGeneral(int pressedCount){
+    int attack=settings.adsr.attack;
+    int decay=settings.adsr.decay;
+    int sustain=settings.adsr.sustain;
     if (pressedCount<attack && pressedCount>0){
         return 2-pressedCount;
     }
@@ -281,8 +233,6 @@ int adsrPiano(int pressedCount){
     else{
         return (decay-attack)+floor((pressedCount-decay));
     }
-
-
 }
 
 int adsrHorn(int pressedCount){
@@ -311,9 +261,9 @@ int adsrHorn(int pressedCount){
     
 }
 u_int32_t calcPianoVout(float Amp,int volume, int i){
-    Amp+=generateLFO(2);
+    // Amp+=generateLFO(2);
     uint32_t Vout = static_cast<uint32_t>(Amp *127) - 128;
-    int v=adsrPiano(notes.notes[i].pressedCount);
+    int v=adsrGeneral(notes.notes[i].pressedCount);
     // int v=adsrHorn(notes.notes[i].pressedCount);
     int volshift=8 - volume+v;
     if (volshift>=0){
@@ -324,7 +274,7 @@ u_int32_t calcPianoVout(float Amp,int volume, int i){
     return Vout;
 }
 u_int32_t calcHornVout(float Amp,int volume, int i){
-    Amp+=generateLFO(2);
+    // Amp+=generateLFO(2);
     uint32_t Vout = static_cast<uint32_t>(Amp *127) - 128;
     int v=adsrHorn(notes.notes[i].pressedCount);
     // int v=adsrHorn(notes.notes[i].pressedCount);
@@ -348,4 +298,22 @@ void presssedTimeCount(){
             notes.notes[i].pressedCount=0;
         }
     }
+}
+u_int32_t addEffects(float amp,float prevamp, int volume, int i){
+    int pc=notes.notes[i].pressedCount;
+    int vshift=0;
+    if (settings.lfo.on){
+        amp+=generateLFO(settings.lfo.reduceLFOVolume,settings.lfo.freq);
+    }
+    if (settings.fade.on){
+        vshift=calcFade(pc,settings.fade.sustainTime,settings.fade.fadeSpeed);
+    }
+    else if (settings.adsr.on){
+        vshift=adsrGeneral(pc);
+    }
+    if (settings.lowpass.on){
+        amp=lowPassFilter(amp, prevamp,settings.lowpass.freq);
+    }
+    u_int32_t Vout=calcVout(amp, volume,vshift);
+    return Vout;
 }
