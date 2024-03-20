@@ -62,6 +62,9 @@ void readOneKnob(knob& knob, std::bitset<2> previous_knobs, std::bitset<2> curre
     int knobValue = knob.current_knob_value + knob.lastIncrement;
     knob.current_knob_value = constrain(knobValue, 0, 8);
   }
+  else{
+    knob.lastIncrement = 0;
+  }
 }
 
 void updateKnob(std::array<knob, 4>& knobValues, std::bitset<8> previous_knobs, std::bitset<8> current_knobs, std::bitset<4> previous_knobs_click, std::bitset<4> current_knobs_click){

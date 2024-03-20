@@ -114,12 +114,15 @@ struct Fade{
   int sustainTime;
   int fadeSpeed;
 };
-struct {
+struct setting{
+  Metronome metronome;
   Fade fade;
-  Lowpass lowpass;
   LFO lfo;
   ADSR adsr;
-  Metronome metronome;
+  Lowpass lowpass;
+  int volume;
+  int Tone;
+  int waveIndex;
 }settings;
 
 
@@ -139,6 +142,9 @@ void init_settings(){
   settings.lfo.freq=20;
   settings.lfo.on=false;
   settings.lfo.reduceLFOVolume=2;
+  settings.volume=6;
+  settings.Tone=4;
+  settings.waveIndex=0;
 }
 
 //Constants
@@ -165,6 +171,7 @@ struct State{
   SemaphoreHandle_t mutex;  
   std::array<knob, 4> knobValues;
   int joystickState = 0;
+  std::string currentMenu = "Main";
 } sysState;
 
 volatile uint32_t currentStepSize;

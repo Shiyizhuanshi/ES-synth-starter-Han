@@ -114,6 +114,10 @@ void scanKeysTask(void * pvParameters) {
     }
     updateKnob(sysState.knobValues, previous_knobs, current_knobs, previous_knobs_click, current_knobs_click);
 
+    update_menu_settings(sysState.currentMenu);
+    
+
+
     xSemaphoreGive(sysState.mutex);
 
     for (int i = 0; i < 12; i++){
@@ -122,7 +126,6 @@ void scanKeysTask(void * pvParameters) {
         TX_Message[0] = keys[i] ? 'R' : 'P';
         TX_Message[1] = i;
         TX_Message[2] = 4;
-        // CAN_TX(0x123, const_cast<uint8_t*>(TX_Message));
         xQueueSend( msgOutQ, const_cast<uint8_t*>(TX_Message), portMAX_DELAY);
       }
     }
@@ -131,7 +134,6 @@ void scanKeysTask(void * pvParameters) {
     previous_knobs = current_knobs;
     previous_knobs_click = current_knobs_click;
     oldJoystickState = currentJoystickState;
-    // __atomic_store_n(&currentStepSize, localCurrentStepSize, __ATOMIC_RELAXED);
   }
 }
 
@@ -143,7 +145,7 @@ void displayUpdateTask(void * pvParameters) {
   int posY = 0;
   int index = 0;
   int iconsPos[3] = {624, 416, 87};
-  int stay_time = 1000;
+  int stay_time = 2000;
   int counter = 0;
   std::bitset<2> previous_knob1("00");
   std::bitset<2> previous_knob2("00");
@@ -189,7 +191,7 @@ void displayUpdateTask(void * pvParameters) {
       }
 
       if (sysState.joystickState){
-        menu(index);
+        menu(index, settings);
       }
       // for (int i = 0; i < 3; i++){
       //   u8g2.drawGlyph(40*i+10, 28, iconsPos[i]);
@@ -205,6 +207,7 @@ void displayUpdateTask(void * pvParameters) {
       // }
     }
     else{
+      sysState.currentMenu = "Main";
       u8g2.setCursor(45, 10);
       u8g2.print("StackY");
       u8g2.setFont(u8g2_font_5x8_tr);
@@ -216,19 +219,19 @@ void displayUpdateTask(void * pvParameters) {
             extractBits<inputSize, 2>(sysState.inputs, 16, 2) != previous_knob1)){
           counter = stay_time/100;
         }
-
         if (counter != 0  && i ==3){
-          u8g2.drawStr(10+30*i, 29, std::to_string(sysState.knobValues[3].current_knob_value).c_str());
+          u8g2.drawStr(10+30*i, 29, std::to_string(settings.volume).c_str());
         }
         else if (counter != 0 && i ==2 ){
-          u8g2.drawStr(10+30*i, 29, std::to_string(sysState.knobValues[2].current_knob_value).c_str());
+          u8g2.drawStr(10+30*i, 29, std::to_string(settings.Tone).c_str());
         }
         else if (counter != 0 && i ==1 ){
-          u8g2.drawStr(10+30*i, 29, waveNames[sysState.knobValues[1].current_knob_value].c_str());
+          u8g2.drawStr(10+30*i, 29, waveNames[settings.waveIndex].c_str());
         }
         else{
           u8g2.drawStr(10+30*i, 29, bottomBar_menu[i].c_str());
         }
+
       }
       //display pressed keys
       std::vector<std::string> pressedKeys;
