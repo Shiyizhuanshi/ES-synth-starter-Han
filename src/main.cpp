@@ -10,7 +10,6 @@
 #include "read_inputs.h"
 #include "wave_synth.h"
 
-
 //Constants
 const uint32_t interval = 100; //Display update interval
 
@@ -365,13 +364,6 @@ int auto_detect_init(){
   std::bitset<1> WestDetect;
   std::bitset<1> EastDetect;
   
-  // // send and receive handshake signals for 3s
-  // while (wait_count > 0){
-  //     wait_count--;
-  //     send_handshake_signal(1,1);
-  //     delay(10);
-  //     inputs = readInputs();
-  // }
   for (int i = 0; i < 100; i++){
       send_handshake_signal(1,1);
       delay(30);
@@ -466,7 +458,6 @@ int auto_detect_init(){
 
 void scanKeysTask(void * pvParameters) {
   Serial.println("scanKeysTask started!");
-  // volatile uint32_t localCurrentStepSize1;
   const TickType_t xFrequency1 = 20/portTICK_PERIOD_MS;
   TickType_t xLastWakeTime1 = xTaskGetTickCount();
   std::bitset<12> keys;
@@ -596,9 +587,6 @@ void displayUpdateTask(void * pvParameters) {
 
 void decodeTask(void * pvParameters) {
   Serial.println("decodeTask started!");
-  // std::bitset<12> keys_1;
-  // std::bitset<12> previou_keys_1("111111111111");
-  // volatile uint32_t localCurrentStepSize2;
   while (1) {
     xQueueReceive(msgInQ, RX_Message, portMAX_DELAY);
     int tune_knob_value=__atomic_load_n(&sysState.knobValues[2].current_knob_value,__ATOMIC_RELAXED);
@@ -615,23 +603,6 @@ void decodeTask(void * pvParameters) {
         sysState.inputs[RX_Message[1]] = 1;
         notes.notes[(RX_Message[2]-1)*12+RX_Message[1]].active = false;
       }
-
-      // keys_1 = extractBits<28, 12>(sysState.inputs, 0, 12);
-      // for (int i = 0; i < 12; i++){
-      //   if (keys_1.to_ulong() != 0xFFF){
-      //     if (keys_1[i] != previou_keys_1[i]){
-      //       localCurrentStepSize2 = !keys_1[i] ? stepSizes[i] : 0;
-      //     }
-      //   }
-      //   else{
-      //     localCurrentStepSize2 = 0;
-      //   }
-      // }
-      // previou_keys_1 = keys_1;
-      // localCurrentStepSize2 = localCurrentStepSize2 * pow(2, RX_Message[2] - 4);
-
-      // Serial.println(localCurrentStepSize2);
-      // __atomic_store_n(&currentStepSize, localCurrentStepSize2, __ATOMIC_RELAXED);
     }
     // // if board 1 receives a message from board 0, it will send the message back to the board 0
     else if(RX_Message[3] == 0 && sysState.posId == 1
@@ -750,7 +721,7 @@ void setup() {
   256 ,      		/* Stack size in words, not bytes */
   NULL,			/* Parameter passed into the task */
   1,			/* Task priority */
-  &displayUpdateHandle );	/* Pointer to store the task handle */
+  &decodeTaskHandle );	/* Pointer to store the task handle */
 
   xTaskCreate(
   CAN_TX_Task,		/* Function that implements the task */
