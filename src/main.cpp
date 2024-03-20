@@ -117,7 +117,10 @@ void backgroundCalcTask(void * pvParameters){
                 uint32_t stepSize=__atomic_load_n(&stepSizes[i%12],__ATOMIC_RELAXED);
                 
                 hasActiveKey=true;
-                int tune=int(ceil((i+1)/12));
+                // float j=i+0.0;
+                // int tune=int(ceil((i+1)/12));
+                int tune=(i-i%12)/12+1;
+
                 if ((tune-4)>=0){
                   phaseAcc+=stepSize << (tune-4);}
                 else{
@@ -605,12 +608,12 @@ void decodeTask(void * pvParameters) {
     if (sysState.posId == 0){
       if (RX_Message[0] == 'P'){
         sysState.inputs[RX_Message[1]] = 0;
-        notes.notes[(RX_Message[2]-1)*4+RX_Message[1]].active = true;
+        notes.notes[(RX_Message[2]-1)*12+RX_Message[1]].active = true;
 
       }
       else if (RX_Message[0] == 'R'){
         sysState.inputs[RX_Message[1]] = 1;
-        notes.notes[(RX_Message[2]-1)*4+RX_Message[1]].active = false;
+        notes.notes[(RX_Message[2]-1)*12+RX_Message[1]].active = false;
       }
 
       // keys_1 = extractBits<28, 12>(sysState.inputs, 0, 12);
