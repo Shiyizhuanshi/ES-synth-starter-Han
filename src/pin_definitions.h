@@ -1,6 +1,9 @@
 // pin_definitions.h
 
 #include <Arduino.h>
+#include <U8g2lib.h>
+#include <bitset>
+#include <string>
 
 #ifndef PIN_DEFINITIONS_H
 #define PIN_DEFINITIONS_H
@@ -78,4 +81,97 @@ std::array<std::string, 12> noteNames = {
   "A#",
   "B"
 };
+
+const std::size_t inputSize = 28;
+
+struct knob{
+  int current_knob_value = 8;
+  int lastIncrement = 0;
+  bool clickState = 0;
+};
+struct ADSR{
+  bool on;
+  int attack;
+  int decay;
+  int sustain;
+  //int release;
+};
+struct LFO{
+  bool on;
+  int freq;
+  int reduceLFOVolume;
+};
+struct Metronome{
+  bool on;
+  int speed;
+};
+struct Lowpass{
+  int on;
+  int freq;
+};
+struct Fade{
+  int on;
+  int sustainTime;
+  int fadeSpeed;
+};
+struct {
+  Fade fade;
+  Lowpass lowpass;
+  LFO lfo;
+  ADSR adsr;
+  Metronome metronome;
+}settings;
+
+
+
+void init_settings(){
+  settings.fade.on=false;
+  settings.fade.fadeSpeed=2;
+  settings.fade.sustainTime=3;
+  settings.adsr.on=false;
+  settings.adsr.attack=1;
+  settings.adsr.decay=4;
+  settings.adsr.sustain=8;
+  settings.lowpass.on=false;
+  settings.lowpass.freq=500;
+  settings.metronome.on=false;
+  settings.metronome.speed=8;
+  settings.lfo.freq=20;
+  settings.lfo.on=false;
+  settings.lfo.reduceLFOVolume=2;
+}
+
+//Constants
+const uint32_t interval = 100; //Display update interval
+
+uint32_t ID = 0x123; //CAN ID
+uint8_t RX_Message[8] = {0};  //CAN RX message
+volatile uint8_t TX_Message[8] = {0}; //CAN TX message
+std::string movement;
+//Create message input and output queues
+//36 messages of 8 bytes, each message takes around 0.7ms to process
+QueueHandle_t msgInQ = xQueueCreate(36,8);; // Message input queue
+QueueHandle_t msgOutQ = xQueueCreate(36,8);; // Message output queue
+
+SemaphoreHandle_t CAN_TX_Semaphore; //CAN TX semaphore
+
+std::string bottomBar_menu[4] = {"Menu", "Test", "Tone", "Vol"};
+std::string waveNames[9] = {"Saw", "Sin", "Squ", "Tri", "Pia", "Saxo", "Bell", "Alar", "None"};
+std::string menu_first_level[6] = {"Met", "Fade", "LFO", "ADSR", "LPF", "exit"};
+
+//Struct to hold system state
+struct State{
+  std::bitset<inputSize> inputs;
+  SemaphoreHandle_t mutex;  
+  std::array<knob, 4> knobValues;
+  int joystickState = 0;
+} sysState;
+
+volatile uint32_t currentStepSize;
+
+const uint32_t sampleRate = 22000;  //Sample rate
+
+//Display driver object
+U8G2_SSD1305_128X32_NONAME_F_HW_I2C u8g2(U8G2_R0);
+
 #endif  // PIN_DEFINITIONS_H

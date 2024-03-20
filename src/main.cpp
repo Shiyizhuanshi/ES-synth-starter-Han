@@ -1,41 +1,11 @@
 #include <Arduino.h>
-#include <U8g2lib.h>
 #include <STM32FreeRTOS.h>
-#include <bitset>
 #include <ES_CAN.h>
 #include <cmath>
 
 #include "read_inputs.h"
 #include "pin_definitions.h"
-
-//Constants
-const uint32_t interval = 100; //Display update interval
-
-uint32_t ID = 0x123; //CAN ID
-uint8_t RX_Message[8] = {0};  //CAN RX message
-volatile uint8_t TX_Message[8] = {0}; //CAN TX message
-std::string movement;
-//Create message input and output queues
-//36 messages of 8 bytes, each message takes around 0.7ms to process
-QueueHandle_t msgInQ = xQueueCreate(36,8);; // Message input queue
-QueueHandle_t msgOutQ = xQueueCreate(36,8);; // Message output queue
-
-SemaphoreHandle_t CAN_TX_Semaphore; //CAN TX semaphore
-
-//Struct to hold system state
-struct {
-  std::bitset<inputSize> inputs;
-  SemaphoreHandle_t mutex;  
-  std::array<knob, 4> knobValues;
-  int joystickState = 0;
-} sysState;
-
-volatile uint32_t currentStepSize;
-
-const uint32_t sampleRate = 22000;  //Sample rate
-
-//Display driver object
-U8G2_SSD1305_128X32_NONAME_F_HW_I2C u8g2(U8G2_R0);
+#include "menu.h"
 
 //Function to set outputs using key matrix
 void setOutMuxBit(const uint8_t bitIdx, const bool value) {
@@ -126,8 +96,6 @@ void scanKeysTask(void * pvParameters) {
   std::bitset<1> currentJoystickState{"0"};
   std::bitset<1> oldJoystickState{"0"};
 
-  
-  
   std::bitset<12> previous_keys("111111111111");
   std::bitset<8> previous_knobs("00000000");
   std::bitset<4> previous_knobs_click("0000");
@@ -141,30 +109,14 @@ void scanKeysTask(void * pvParameters) {
     current_knobs = extractBits<inputSize, 8>(sysState.inputs, 12, 8);
     current_knobs_click = extractBits<inputSize, 4>(sysState.inputs, 20, 2).to_ulong() << 2 | extractBits<inputSize, 4>(sysState.inputs, 24, 2).to_ulong();
     currentJoystickState = extractBits<inputSize, 1>(sysState.inputs, 22, 1).to_ulong();
-    Serial.println(currentJoystickState.to_ulong());
     if (currentJoystickState != oldJoystickState && currentJoystickState == 0){
       sysState.joystickState = !sysState.joystickState;
     }
-    // joystickX = analogRead(JOYX_PIN);
-    // joystickY = analogRead(JOYY_PIN);
-    // Serial.print(joystickX);
-    // Serial.print(", ");
-    // Serial.println(joystickY);
     updateKnob(sysState.knobValues, previous_knobs, current_knobs, previous_knobs_click, current_knobs_click);
 
-    
     xSemaphoreGive(sysState.mutex);
 
     for (int i = 0; i < 12; i++){
-      // if (keys.to_ulong() != 0xFFF){
-      //   if (!keys[i]) {
-      //   localCurrentStepSize = stepSizes[i];
-      //   }
-      // }
-      // else{
-      //   localCurrentStepSize = 0;
-      // }
-      
       // Decode keys
       if (keys[i] != previous_keys[i]){
         TX_Message[0] = keys[i] ? 'R' : 'P';
@@ -191,107 +143,110 @@ void displayUpdateTask(void * pvParameters) {
   int posY = 0;
   int index = 0;
   int iconsPos[3] = {624, 416, 87};
+  int stay_time = 1000;
+  int counter = 0;
+  std::bitset<2> previous_knob1("00");
+  std::bitset<2> previous_knob2("00");
+  std::bitset<2> previous_knob3("00");
   while (1) {
     vTaskDelayUntil( &xLastWakeTime2, xFrequency2);
     u8g2.clearBuffer();
     u8g2.setFont(u8g2_font_ncenB08_tr);
 
+    if (counter != 0){
+      counter --;
+    }
     xSemaphoreTake(sysState.mutex, portMAX_DELAY);
     
-    //Display inputs
-    // for (int i = 0; i < 20; i++){
-    //   u8g2.setCursor(5*(i+1), 10);
-    //   u8g2.print(sysState.inputs[i]);
-    // }
-    if (sysState.knobValues[0].clickState){
-      u8g2.setFont(u8g2_font_streamline_all_t);
-      if (movement == "right"){
+    if(sysState.knobValues[0].clickState){
+      u8g2.setFont(u8g2_font_6x10_tr);
+      if (movement == "down"){
+        index += 3;
+      }
+      else if (movement == "up"){
+        index -= 3;
+      }
+      else if (movement == "right"){
         index += 1;
       }
       else if (movement == "left"){
         index -= 1;
       }
-      index = constrain(index, 0, 2);
+      index = constrain(index, 0, 5);
 
-      for (int i = 0; i < 3; i++){
-        u8g2.drawGlyph(40*i+10, 28, iconsPos[i]);
-        if (index == i ){
-          u8g2.drawFrame(40*i+10-3, 5, 27, 27);
+      for (int i = 0; i < 6; i++){
+        if (i< 3){
+          u8g2.drawStr(10 + 35 * i, 14, menu_first_level[i].c_str());
+        }
+        else{
+          u8g2.drawStr(10 + 35 * (i-3), 25, menu_first_level[i].c_str());
+        }
+        if (index == i){
+          int x_pos = (i < 3) ? 10 + 35 * i : 10 + 35 * (i-3);
+          int y_pos = (i < 3) ? 5 : 15;
+          u8g2.drawFrame(x_pos-3, y_pos, 32, 12);
         }
       }
+
       if (sysState.joystickState){
-        u8g2.clearBuffer();
-        u8g2.setFont(u8g2_font_ncenB08_tr);
-        u8g2.setCursor(10, 10);
-        u8g2.print("Joystick pressed");
+        menu(index);
       }
-      // u8g2.drawFrame(7,5,27,27);
-      // u8g2.drawGlyph(10, 28, 624);
-      // u8g2.drawGlyph(50, 28, 416);
-      // u8g2.drawGlyph(90, 28, 87);
-      
-    }
-    else if (sysState.knobValues[1].clickState){
-      if (movement == "right"){
-        posX += 2;
-      }
-      else if (movement == "left"){
-        posX -= 2;
-      }
-      else if (movement == "up"){
-        posY -= 2;
-      }
-      else if (movement == "down"){
-        posY += 2;
-      }
-      posX = constrain(posX, 2, 120);
-      posY = constrain(posY, 0, 28);
-      u8g2.setCursor(10, 10);
-      u8g2.drawFrame(posX, posY, 3, 3);
+      // for (int i = 0; i < 3; i++){
+      //   u8g2.drawGlyph(40*i+10, 28, iconsPos[i]);
+      //   if (index == i ){
+      //     u8g2.drawFrame(40*i+10-3, 5, 27, 27);
+      //   }
+      // }
+      // if (sysState.joystickState){
+      //   u8g2.clearBuffer();
+      //   u8g2.setFont(u8g2_font_ncenB08_tr);
+      //   u8g2.setCursor(10, 10);
+      //   u8g2.print("Joystick pressed");
+      // }
     }
     else{
-      //Display inputs
-      for (int i = 0; i < 20; i++){
-        u8g2.setCursor(5*(i+1), 10);
-        u8g2.print(sysState.inputs[i]);
-      }
-
-      u8g2.setCursor(10, 30);
-      u8g2.print(sysState.joystickState);
-
-      //Display knob click state
+      u8g2.setCursor(45, 10);
+      u8g2.print("StackY");
+      u8g2.setFont(u8g2_font_5x8_tr);
       for (int i = 0; i < 4; i++){
-        u8g2.setCursor(20 + 8*(i+1), 30);
-        u8g2.print(sysState.knobValues[i].clickState);
-      }
+        u8g2.drawFrame(8+30*i, 20, 25, 20);
+        if (i !=0 && 
+           (extractBits<inputSize, 2>(sysState.inputs, 12, 2) != previous_knob3 ||
+            extractBits<inputSize, 2>(sysState.inputs, 14, 2) != previous_knob2 ||
+            extractBits<inputSize, 2>(sysState.inputs, 16, 2) != previous_knob1)){
+          counter = stay_time/100;
+        }
 
-      //Display knobs
-      for (int i = 0; i < 4; i++){
-        u8g2.setCursor(90 + 8*(i+1), 30);
-        u8g2.print(sysState.knobValues[i].current_knob_value);
+        if (counter != 0  && i ==3){
+          u8g2.drawStr(10+30*i, 29, std::to_string(sysState.knobValues[3].current_knob_value).c_str());
+        }
+        else if (counter != 0 && i ==2 ){
+          u8g2.drawStr(10+30*i, 29, std::to_string(sysState.knobValues[2].current_knob_value).c_str());
+        }
+        else if (counter != 0 && i ==1 ){
+          u8g2.drawStr(10+30*i, 29, waveNames[sysState.knobValues[1].current_knob_value].c_str());
+        }
+        else{
+          u8g2.drawStr(10+30*i, 29, bottomBar_menu[i].c_str());
+        }
       }
+      //display pressed keys
       std::vector<std::string> pressedKeys;
       for (int i = 0; i < 12; i++){
         if (sysState.inputs[i] == 0){
           pressedKeys.push_back(noteNames[i]);
         }
       }
-
       for (int i = 0; i < pressedKeys.size(); i++){
-        u8g2.setCursor(10+ 10*i, 20);
+        u8g2.setCursor(10+ 10*i, 18);
         u8g2.print(pressedKeys[i].c_str());
       }
     }
-    
-
+    previous_knob1 = extractBits<inputSize, 2>(sysState.inputs, 16, 2);
+    previous_knob2 = extractBits<inputSize, 2>(sysState.inputs, 14, 2);
+    previous_knob3 = extractBits<inputSize, 2>(sysState.inputs, 12, 2);
     xSemaphoreGive(sysState.mutex);
-    // u8g2.setCursor(66,30);
-    // u8g2.print((char) RX_Message[0]);
-    // u8g2.print(RX_Message[1]);
-    // u8g2.print(RX_Message[2]);
-
     u8g2.sendBuffer();
-	  
     digitalToggle(LED_BUILTIN);
   }
 }
@@ -313,18 +268,6 @@ void decodeTask(void * pvParameters) {
     else{
       localCurrentStepSize -= stepSizes[RX_Message[1]];
     }
-    // keys_1 = extractBits<20, 12>(sysState.inputs, 0, 12);
-    // for (int i = 0; i < 12; i++){
-    //   if (keys_1.to_ulong() != 0xFFF){
-    //     if (keys_1[i] != previou_keys_1[i]){
-    //       localCurrentStepSize = !keys_1[i] ? stepSizes[i] : 0;
-    //     }
-    //   }
-    //   else{
-    //     localCurrentStepSize = 0;
-    //   }
-    // }
-    // previou_keys_1 = keys_1;
     localCurrentStepSize = localCurrentStepSize * pow(2, sysState.knobValues[2].current_knob_value-4);
     __atomic_store_n(&currentStepSize, localCurrentStepSize, __ATOMIC_RELAXED);
   }
@@ -341,9 +284,11 @@ void CAN_TX_Task (void * pvParameters) {
 
 void setup() {
   sysState.knobValues[2].current_knob_value = 4;
+  sysState.knobValues[3].current_knob_value = 0;
+
   //Set pin directions
   set_pin_directions();
-
+  init_settings();
   //Initialise display
   setOutMuxBit(DRST_BIT, LOW);  //Assert display logic reset
   delayMicroseconds(2);
