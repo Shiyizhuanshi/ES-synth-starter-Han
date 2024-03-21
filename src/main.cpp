@@ -406,7 +406,7 @@ void scanKeysTask(void * pvParameters) {
 }
 
 void displayUpdateTask(void * pvParameters) {
-  const TickType_t xFrequency2 = 200/portTICK_PERIOD_MS;
+  const TickType_t xFrequency2 = 300/portTICK_PERIOD_MS;
   TickType_t xLastWakeTime2 = xTaskGetTickCount();
   static uint32_t count = 0;
   int posX = 0;
@@ -651,7 +651,7 @@ void setup() {
   "displayUpdate",		/* Text name for the task */
   256 ,      		/* Stack size in words, not bytes */
   NULL,			/* Parameter passed into the task */
-  2,			/* Task priority */
+  1,			/* Task priority */
   &displayUpdateHandle );	/* Pointer to store the task handle */
 
   xTaskCreate(
