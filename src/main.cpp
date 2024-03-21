@@ -20,8 +20,8 @@ void writeToSampleBuffer(uint32_t Vout, uint32_t writeCtr){
 
 void backgroundCalcTask(void * pvParameters){
   static float prevfloatAmp=0;
-  // while(1){
-    // xSemaphoreTake(sampleBufferSemaphore, portMAX_DELAY);
+  while(1){
+    xSemaphoreTake(sampleBufferSemaphore, portMAX_DELAY);
     uint32_t writeCtr=0;
     while( writeCtr < SAMPLE_BUFFER_SIZE/2){
       int vol_knob_value = settings.volume; 
@@ -99,7 +99,7 @@ void backgroundCalcTask(void * pvParameters){
           }
     }
     
-  // }
+  }
 
 }
 
@@ -602,12 +602,7 @@ void CAN_TX_Task (void * pvParameters) {
     
 	}
 }
-void fillmsgQ(){
-  uint8_t RX_Message[8] = {'P', 4, 0, 0, 0, 0, 0, 0}; 
-  for (int a = 0; a < 60; a++){
-    xQueueSend(msgOutQ, RX_Message, portMAX_DELAY);
-  }
-}
+
 void fillmsgQ(){
   uint8_t RX_Message[8] = {'P', 4, 0, 0, 0, 0, 0, 0}; 
   for (int a = 0; a < 60; a++){
@@ -715,7 +710,7 @@ void testSetup(){
 }
 
 void setup() {
-  testSetup();
+  // testSetup();
   sysState.knobValues[2].current_knob_value = 4;
   sysState.knobValues[3].current_knob_value = 6;
   //Set pin directions
