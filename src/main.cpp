@@ -109,7 +109,7 @@ void sampleISR() {
   static uint32_t metronomeCounter=0;
   int metronomespeed=__atomic_load_n(&settings.metronome.speed,__ATOMIC_RELAXED);
   bool metroOn=__atomic_load_n(&settings.metronome.on,__ATOMIC_RELAXED);
-  int posId=__atomic_load_n(&settings.metronome.on,__ATOMIC_RELAXED);
+  int posId=__atomic_load_n(& sysState.posId ,__ATOMIC_RELAXED);
   if (posId == 0 ){
     if (readCtr == SAMPLE_BUFFER_SIZE/2) {
       readCtr = 0;
