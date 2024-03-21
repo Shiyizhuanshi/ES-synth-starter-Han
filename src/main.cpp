@@ -72,8 +72,8 @@ void backgroundCalcTask(void * pvParameters){
               floatAmp+=addEffects(Amp,vol_knob_value,i);
             }
             else if(version_knob_value==1){//alarm
-              float phase=notePhases[i];
-              float amp=getSample(phase,&notes.notes[i].floatPhaseAcc, squareTable);
+             
+              float amp=getSample(notePhases[i],&notes.notes[i].floatPhaseAcc, squareTable);
               floatAmp+=calcHornVout(amp,vol_knob_value,i);
               floatAmp+=addEffects(amp,vol_knob_value,i);
               
@@ -109,7 +109,8 @@ void sampleISR() {
   static uint32_t metronomeCounter=0;
   int metronomespeed=__atomic_load_n(&settings.metronome.speed,__ATOMIC_RELAXED);
   bool metroOn=__atomic_load_n(&settings.metronome.on,__ATOMIC_RELAXED);
-  if (sysState.posId == 0 ){
+  int posId=__atomic_load_n(&settings.metronome.on,__ATOMIC_RELAXED);
+  if (posId == 0 ){
     if (readCtr == SAMPLE_BUFFER_SIZE/2) {
       readCtr = 0;
       writeBuffer1 = !writeBuffer1;
@@ -337,6 +338,7 @@ void scanKeysTask(void * pvParameters) {
 
     xSemaphoreTake(sysState.mutex, portMAX_DELAY);
     xSemaphoreTake(notes.mutex, portMAX_DELAY);
+    xSemaphoreTake(settings.mutex, portMAX_DELAY);
     sysState.inputs = readInputs();
     
     keys = extractBits<inputSize, 12>(sysState.inputs, 0, 12);
@@ -356,7 +358,8 @@ void scanKeysTask(void * pvParameters) {
 
     if (currentTune != previousTune && sysState.posId == 0 && !sysState.EastDetect[0]){
       Serial.println("tune value changed!");
-      settings.tune = currentTune;
+      __atomic_store_n(&settings.tune , currentTune, __ATOMIC_RELAXED);
+      // settings.tune = currentTune;
       TX_Message[0] = 'T';
       TX_Message[1] = currentTune;
       xQueueSend( msgOutQ, const_cast<uint8_t*>(TX_Message), portMAX_DELAY);
@@ -377,7 +380,8 @@ void scanKeysTask(void * pvParameters) {
     // if nothing on west and east then local play mode
     if (sysState.EastDetect[0] && sysState.WestDetect[0]){
       sysState.posId = 0;
-      int tune = settings.tune;
+      // int tune = settings.tune;
+      int tune=__atomic_load_n(&settings.tune,__ATOMIC_RELAXED);
       for (int i = 0; i < 12; i++){
         if (keys.to_ulong() != 0xFFF){
           if (!keys[i]) {
@@ -415,6 +419,7 @@ void scanKeysTask(void * pvParameters) {
     old_EastDetect = sysState.EastDetect;
     xSemaphoreGive(sysState.mutex);
     xSemaphoreGive(notes.mutex);
+    xSemaphoreGive(settings.mutex);
   }
 }
 
@@ -434,6 +439,7 @@ void displayUpdateTask(void * pvParameters) {
   while (1) {
     vTaskDelayUntil( &xLastWakeTime2, xFrequency2);
     u8g2.clearBuffer();
+    
 
     if (sysState.posId != 0){
       u8g2.setCursor(30, 15);
@@ -448,6 +454,7 @@ void displayUpdateTask(void * pvParameters) {
       }
       xSemaphoreTake(sysState.mutex, portMAX_DELAY);
       
+      xSemaphoreTake(settings.mutex, portMAX_DELAY);
       if(sysState.knobValues[0].clickState){
         u8g2.setFont(u8g2_font_6x10_tr);
         if (movement == "down"){
@@ -514,6 +521,7 @@ void displayUpdateTask(void * pvParameters) {
       previous_knob2 = extractBits<inputSize, 2>(sysState.inputs, 14, 2);
       previous_knob3 = extractBits<inputSize, 2>(sysState.inputs, 12, 2);
       xSemaphoreGive(sysState.mutex);
+      xSemaphoreGive(settings.mutex);
     }
 
     u8g2.setFont(u8g2_font_5x8_tr);
@@ -540,6 +548,7 @@ void decodeTask(void * pvParameters) {
     xQueueReceive(msgInQ, RX_Message, portMAX_DELAY);
     xSemaphoreTake(sysState.mutex, portMAX_DELAY);
     xSemaphoreTake(notes.mutex, portMAX_DELAY);
+    xSemaphoreTake(settings.mutex, portMAX_DELAY);
     // for (int i=0; i<48; i++){
     if (sysState.posId == 0){
       if (RX_Message[0] == 'P'){
@@ -584,6 +593,7 @@ void decodeTask(void * pvParameters) {
 
     xSemaphoreGive(notes.mutex);
     xSemaphoreGive(sysState.mutex);
+    xSemaphoreGive(settings.mutex);
   }
 }
 
@@ -805,6 +815,7 @@ void setup() {
 
   notes.mutex = xSemaphoreCreateMutex();
   sysState.mutex = xSemaphoreCreateMutex(); //Create mutex
+  settings.mutex= xSemaphoreCreateMutex();
   vTaskStartScheduler();
 
 

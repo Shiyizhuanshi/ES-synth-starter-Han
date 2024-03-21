@@ -113,6 +113,7 @@ struct setting{
   int volume;
   int tune;
   int waveIndex;
+  SemaphoreHandle_t mutex;  
 }settings;
 
 // Row select and enable

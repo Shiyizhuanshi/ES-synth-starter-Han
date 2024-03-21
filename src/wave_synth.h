@@ -131,9 +131,9 @@ u_int32_t calcVout(float Amp,int volume, int vshift){
 
 
 int adsrGeneral(int pressedCount){
-    int attack=settings.adsr.attack;
-    int decay=settings.adsr.decay+attack;
-    int sustain=settings.adsr.sustain+decay;
+    int attack=__atomic_load_n(&settings.adsr.attack, __ATOMIC_RELAXED);
+    int decay=__atomic_load_n(&settings.adsr.decay, __ATOMIC_RELAXED)+attack;
+    int sustain=__atomic_load_n(&settings.adsr.sustain, __ATOMIC_RELAXED)+decay;
     if (pressedCount<attack && pressedCount>0){
         return pressedCount-int(attack/2);
     }
@@ -145,7 +145,8 @@ int adsrGeneral(int pressedCount){
     }
 
     else{
-        return (decay-attack)+(pressedCount-sustain)/settings.fade.fadeSpeed;
+        int fadeSpeed=__atomic_load_n(&settings.adsr.sustain, __ATOMIC_RELAXED)+decay;
+        return (decay-attack)+(pressedCount-sustain)/fadeSpeed;
     }
 }
 
@@ -217,12 +218,15 @@ void presssedTimeCount(){
 u_int32_t addEffects(float amp, int volume, int i){
     
     int vshift=0;
-
-    if (settings.fade.on){
+    bool fadeon=__atomic_load_n(&settings.fade.on,__ATOMIC_RELAXED);
+    bool adsron=__atomic_load_n(&settings.adsr.on, __ATOMIC_RELAXED);
+    if (fadeon){
+        int sustainTime=__atomic_load_n(&settings.fade.sustainTime, __ATOMIC_RELAXED);
+        int fadeSpeed=__atomic_load_n(&settings.fade.fadeSpeed, __ATOMIC_RELAXED);
         int pc=notes.notes[i].pressedCount;
-        vshift=calcFade(pc,settings.fade.sustainTime,settings.fade.fadeSpeed);
+        vshift=calcFade(pc,sustainTime,fadeSpeed);
     }
-    else if (settings.adsr.on){
+    else if (adsron){
         int pc=notes.notes[i].pressedCount;
         vshift=adsrGeneral(pc);
     }
@@ -230,8 +234,11 @@ u_int32_t addEffects(float amp, int volume, int i){
     return Vout;
 }
 u_int32_t addLFO(float amp,int volume){
-    if (settings.lfo.on){
-        amp=generateLFO(settings.lfo.reduceLFOVolume,settings.lfo.freq);
+    bool lfoon=__atomic_load_n(&settings.lfo.on, __ATOMIC_RELAXED);
+    if (lfoon){
+        int lfovol=__atomic_load_n(&settings.lfo.reduceLFOVolume, __ATOMIC_RELAXED);
+        int lfofreq=__atomic_load_n(&settings.lfo.freq, __ATOMIC_RELAXED);
+        amp=generateLFO(lfovol,lfofreq);
         
         u_int32_t Vout=calcVout(amp, volume,0);
         return Vout;
@@ -243,8 +250,10 @@ u_int32_t addLFO(float amp,int volume){
 
 }
 float addLPF(float amp,float *prevamp){
-    if (settings.lowpass.on){
-        amp=lowPassFilter(amp, *prevamp,settings.lowpass.freq);
+    bool lpon=__atomic_load_n(&settings.lowpass.on, __ATOMIC_RELAXED);
+    if (lpon){
+        int freq=__atomic_load_n(&settings.lowpass.freq, __ATOMIC_RELAXED);
+        amp=lowPassFilter(amp, *prevamp,freq);
         *prevamp=amp;
        
     }
