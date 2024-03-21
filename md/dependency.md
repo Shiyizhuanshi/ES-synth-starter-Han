@@ -16,7 +16,7 @@ Two different buffers which are shared by BackCal and Sample ISR, buffers are pr
 
 Intertask blocking dependencies:
 
-![66fc1551d39dc56e0030750c7379f7c](https://github.com/Shiyizhuanshi/ES-synth-starter-Han/assets/105670417/b61ed8bd-9884-4dd7-990b-34f79bc34d40)
+![image](https://github.com/Shiyizhuanshi/ES-synth-starter-Han/assets/105670417/c6b2db20-d41d-4658-b8cd-a84e755536b1)
 
 In the above graph, Display task, sampleISR, backcalc task is dependednt on systate, settings and notes. When the structs are accessed, atomic loads or mutex are all used to prevent deadlocks and improve data security. 
 
