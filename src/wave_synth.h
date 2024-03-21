@@ -29,30 +29,11 @@ float noise_filter_cutoff = 0.8;
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 float dt=1.0f / SAMPLE_RATE;
 float prevcutoffFreq=500;
 float rc=1.0f / (2.0f * M_PI * 500);
-float alpha= dt / (rc + dt);
-
-
+float alpha= dt / (rc + dt); // added to reduce excution time
 float lowPassFilter(float cur, float prev, float cutoffFreq) {
-    
     if (prevcutoffFreq!=cutoffFreq){
         rc = 1.0f / (2.0f * M_PI * cutoffFreq);
         alpha = dt / (rc + dt);
@@ -63,48 +44,8 @@ float lowPassFilter(float cur, float prev, float cutoffFreq) {
 
 
     return  prev + alpha * (cur - prev);
-        // prev = buffer[i];
-    // }
 }
 
-
-
-float low_pass_filter(float input, float cutoff, float resonance, float* state1, float* state2) {
-    float output = input * cutoff + *state1 * (1.0 - cutoff);
-    *state1 = output * cutoff + *state2 * (1.0 - cutoff);
-    *state2 = output;
-    output += (output - *state2) * resonance;
-    return output;
-}
-
-
-
-
-float generateTriangleWave( float frequency ){
-    float amplitude=0.5;
-    float period = SAMPLE_RATE / frequency;
-    float increment = 4.0f * amplitude / period;
-    float value = -amplitude;
-
-    if (value >= amplitude) {
-        increment = -increment;
-    } else if (value <= -amplitude) {
-        increment = -increment;
-    }
-
-    value += increment;
-    return value;
-}
-
-float generateTriangleWaveValue(float frequency, float* phase) {
-    *phase += frequency / SAMPLE_RATE;
-    if (*phase > 1.0f) {
-        *phase -= 1.0f;
-    }
-
-    float value = 2.0f * AMPLITUDE * (fabs(2.0f * *phase - 1.0f) - 0.5f);
-    return value;
-}
 float bhaskaraSin(float x) {
     float numerator = 16 * x * (PI - x);
     float denominator = 5 * PI * PI - 4 * x * (PI - x);
@@ -145,14 +86,7 @@ float generateLFO(int reduceVal,float lfoFreq){
     float amp=getSample(lfoPhase,&LFOAcc,sineTable)/reduceVal;
     return amp;
 }
-// float sinTable[256];
 
-// void generateSinLUT(){
-//     float step=(1/256)*2*M_PI;
-//     for (int i=0; i<TABLE_SIZE;i++){
-//         sinTable[i]=sin(step*i);
-//     }
-// }
 int calcFade(int pressedCount, int decaytime, int decayspeed){
     // int press=3;
     // int decay=4;
@@ -179,41 +113,9 @@ float calcSawtoothAmp(float *phaseAcc,int volume, int i){
 
     return amp;
 }
-u_int32_t calcNoProcessSawtoothVout(u_int32_t phaseAcc,int volume, int tune){
-    
-    uint32_t Vout = (phaseAcc >> 24) - 128;
-
-    // int v=calcEnvelope(notes.notes[i].pressedCount);
-    int volshift=8 - volume;
-
-    Vout = ((Vout+128) >> (volshift)) ;
-    return Vout;
-}
 
 
 
-// u_int32_t calcOtherVout(float Amp,int volume, int i){
-//     uint32_t Vout = static_cast<uint32_t>(Amp *127) - 128;
-//     int v=calcDecay(notes.notes[i].pressedCount);
-//     int volshift=8 - volume+v;
-//     if (volshift>=0){
-
-//     Vout = ((Vout+128) >> (volshift)) ;}
-//     else {Vout = ((Vout+128) << -(volshift)) ;}
-
-//     return Vout;
-// }
-
-u_int32_t calcNoEnvelopeVout(float Amp,int volume){
-    uint32_t Vout = static_cast<uint32_t>(Amp *127) - 128;
-    int volshift=8 - volume;
-    if (volshift>=0){
-
-    Vout = ((Vout+128) >> (volshift)) ;}
-    else {Vout = ((Vout+128) << -(volshift)) ;}
-
-    return Vout;
-}
 
 u_int32_t calcVout(float Amp,int volume, int vshift){
     uint32_t Vout = static_cast<uint32_t>(Amp *255) - 128;
@@ -272,32 +174,32 @@ int adsrHorn(int pressedCount){
     }
     
 }
-u_int32_t calcPianoVout(float Amp,int volume, int i){
-    // Amp+=generateLFO(2);
-    uint32_t Vout = static_cast<uint32_t>(Amp *127) - 128;
-    int v=adsrGeneral(notes.notes[i].pressedCount);
-    // int v=adsrHorn(notes.notes[i].pressedCount);
-    int volshift=8 - volume+v;
-    if (volshift>=0){
+// u_int32_t calcPianoVout(float Amp,int volume, int i){
+//     // Amp+=generateLFO(2);
+//     uint32_t Vout = static_cast<uint32_t>(Amp *127) - 128;
+//     int v=adsrGeneral(notes.notes[i].pressedCount);
+//     // int v=adsrHorn(notes.notes[i].pressedCount);
+//     int volshift=8 - volume+v;
+//     if (volshift>=0){
 
-    Vout = ((Vout+128) >> (volshift)) ;}
-    else {Vout = ((Vout+128) << -(volshift)) ;}
+//     Vout = ((Vout+128) >> (volshift)) ;}
+//     else {Vout = ((Vout+128) << -(volshift)) ;}
 
-    return Vout;
-}
-u_int32_t calcHornVout(float Amp,int volume, int i){
-    // Amp+=generateLFO(2);
-    uint32_t Vout = static_cast<uint32_t>(Amp *127) - 128;
-    int v=adsrHorn(notes.notes[i].pressedCount);
-    // int v=adsrHorn(notes.notes[i].pressedCount);
-    int volshift=8 - volume+v;
-    if (volshift>=0){
+//     return Vout;
+// }
+// u_int32_t calcHornVout(float Amp,int volume, int i){
+//     // Amp+=generateLFO(2);
+//     uint32_t Vout = static_cast<uint32_t>(Amp *127) - 128;
+//     int v=adsrHorn(notes.notes[i].pressedCount);
+//     // int v=adsrHorn(notes.notes[i].pressedCount);
+//     int volshift=8 - volume+v;
+//     if (volshift>=0){
 
-    Vout = ((Vout+128) >> (volshift)) ;}
-    else {Vout = ((Vout+128) << -(volshift)) ;}
+//     Vout = ((Vout+128) >> (volshift)) ;}
+//     else {Vout = ((Vout+128) << -(volshift)) ;}
 
-    return Vout;
-}
+//     return Vout;
+// }
 
 
 void presssedTimeCount(){

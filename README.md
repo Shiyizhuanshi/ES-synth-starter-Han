@@ -38,14 +38,27 @@ for the main board, at most 48 rx messages it can recieve at once, from all 4 bo
 therefore the worst case tasks and time used are:
 
 decode task: Initiation time: 33.6ms excution time 0.014ms;
-canTX task: Initiation of 80ms, excution 46.3ms
+canTX task: Initiation of 100ms, excution 58.0ms
 joystick task: Initiation time 100ms, excution 0.33ms
 scan keys: Initation time 20ms, excution 0.112ms
 Display: Initiation 100ms, excution 17.2ms
 backcalc all features on: when only 1 board by itself: Initiation 50ms, excution 47.2ms
                           4 boards: Initiation 50ms, excution 108.8ms. 
-backcalc all features off: when only 2 boards: Initiation 50ms, excution 46.2ms
+backcalc all features off: 
+                          1 board: Initation 50, excution  33.9ms
+                          2 boards: Initiation 50ms, excution 46.2ms
                           4 boards: Initiation 50ms, excution 70.3ms. 
-rank them by piorities:
 
+rank them by piorities:
 scankey 6 decode 5 backcalc 4 cantx 3 display 2 joystick 1
+
+Critical Instant Analysis
+lowest initiation is joystick and display, 100ms,
+in 100ms, ~3xDecode task, 1x canTX task, 1x joystick, 5x scankey, 2x backcalc ( using 1 board backcalc)
+=3x0.014+1*58.0+5x0.112+1*17.2+2*47.2=160.202 > 100
+
+with all the features turned off
+=3x0.014+1*58.0+5x0.112+1*17.2+2*33.9=135.802 > 100
+the problem lies within the worst time 
+
+CPU Utilization: 0.014/33.6+58/100+0.33/100+0.112/20+17.2/100+47.2/50=

@@ -20,8 +20,8 @@ void writeToSampleBuffer(uint32_t Vout, uint32_t writeCtr){
 
 void backgroundCalcTask(void * pvParameters){
   static float prevfloatAmp=0;
-  while(1){
-    xSemaphoreTake(sampleBufferSemaphore, portMAX_DELAY);
+  // while(1){
+    // xSemaphoreTake(sampleBufferSemaphore, portMAX_DELAY);
     uint32_t writeCtr=0;
     while( writeCtr < SAMPLE_BUFFER_SIZE/2){
       int vol_knob_value = settings.volume; 
@@ -99,7 +99,7 @@ void backgroundCalcTask(void * pvParameters){
           }
     }
     
-  }
+  // }
 
 }
 
@@ -525,13 +525,13 @@ void decodeTask(void * pvParameters) {
       if (RX_Message[0] == 'P'){
         sysState.inputs[RX_Message[1]] = 0;
         notes.notes[(RX_Message[2]-1)*12+RX_Message[1]].active = true;
-        Serial.print("active true");
+        // Serial.print("active true");
 
       }
       else if (RX_Message[0] == 'R'){
         sysState.inputs[RX_Message[1]] = 1;
         notes.notes[(RX_Message[2]-1)*12+RX_Message[1]].active = false;
-        Serial.print("active false");
+        // Serial.print("active false");
       }
     }
     // // if board 1 receives a message from board 0, it will send the message back to the board 0
@@ -586,35 +586,36 @@ void CAN_TX_Task (void * pvParameters) {
     
 	}
 }
+void fillmsgQ(){
+  uint8_t RX_Message[8] = {'P', 4, 0, 0, 0, 0, 0, 0}; 
+  for (int a = 0; a < 60; a++){
+    xQueueSend(msgOutQ, RX_Message, portMAX_DELAY);
+  }
+}
 void time_CAN_TX_Task () {
   // Serial.println("CAN_TX_Task started!");
 	uint8_t msgOut[8];
-  msgOut[0]=0;
-  msgOut[1]=1;
-  msgOut[2]=1;
-	// while (1) {
-	// 	xQueueReceive(msgOutQ, msgOut, portMAX_DELAY);
-	// 	xSemaphoreTake(CAN_TX_Semaphore, portMAX_DELAY);
-    // Serial.print("TX: ");
-    // Serial.print((char) msgOut[0]);
-    // Serial.print(msgOut[1]);
-    // Serial.print(msgOut[2]);
-    // Serial.println();
-    for (int i=0;i<48;i++){
-      CAN_TX(ID, msgOut);
-    }
+  // Generic message
+
+  for (int i=0;i<60;i++){
+      xQueueReceive(msgOutQ, msgOut, portMAX_DELAY);
+      // CAN_TX(ID, msgOut);
+  }
+  
 		
     
 	// }
 }
+
 
 void backCalcTime(){
     setWorstcaseBackCalc();
     uint32_t startTime = micros();
 	for (int iter = 0; iter < 32; iter++) {
 		 backgroundCalcTask(NULL);
-     Serial.println(micros()-startTime);
+     
 	}
+  Serial.println(micros()-startTime);
 }
 void displayTime(){
     setWorstcaseDisplay();
@@ -635,10 +636,12 @@ void joystickTime(){
 
 }
 void canTXtime(){
-
+  fillmsgQ();
   uint32_t startTime = micros();
+
 	for (int iter = 0; iter < 32; iter++) {
 		 time_CAN_TX_Task();
+     fillmsgQ();
 	}
   Serial.println(micros()-startTime);
   
@@ -676,20 +679,20 @@ void testSetup(){
   CAN_RegisterRX_ISR(CAN_RX_ISR);
   CAN_RegisterTX_ISR(CAN_TX_ISR);
   CAN_Start();
-  // initial_display();
+  //initial_display();
   // joystickTime();
   // displayTime();
   // scankeyTime();
-  backCalcTime();
-  // canTXtime();
+  // backCalcTime();
+  canTXtime();
   // decodeTime();
-  // while(1){
+  while(1){
 
-  // }
+  }
 }
 
 void setup() {
-  // testSetup();
+  testSetup();
   sysState.knobValues[2].current_knob_value = 4;
   sysState.knobValues[3].current_knob_value = 6;
   //Set pin directions
