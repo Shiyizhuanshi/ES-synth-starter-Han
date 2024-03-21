@@ -406,7 +406,7 @@ void scanKeysTask(void * pvParameters) {
 }
 
 void displayUpdateTask(void * pvParameters) {
-  const TickType_t xFrequency2 = 100/portTICK_PERIOD_MS;
+  const TickType_t xFrequency2 = 200/portTICK_PERIOD_MS;
   TickType_t xLastWakeTime2 = xTaskGetTickCount();
   static uint32_t count = 0;
   int posX = 0;
@@ -635,7 +635,7 @@ void setup() {
   "BackCalc",		/* Text name for the task */
   256 ,      		/* Stack size in words, not bytes */
   NULL,			/* Parameter passed into the task */
-  7,			/* Task priority */
+  5,			/* Task priority */
   &BackCalc_Handle );	/* Pointer to store the task handle */
 
   xTaskCreate(
@@ -651,7 +651,7 @@ void setup() {
   "displayUpdate",		/* Text name for the task */
   256 ,      		/* Stack size in words, not bytes */
   NULL,			/* Parameter passed into the task */
-  4,			/* Task priority */
+  2,			/* Task priority */
   &displayUpdateHandle );	/* Pointer to store the task handle */
 
   xTaskCreate(
@@ -667,7 +667,7 @@ void setup() {
   "scanJoystick",		/* Text name for the task */
   256 ,      		/* Stack size in words, not bytes */
   NULL,			/* Parameter passed into the task */
-  2,			/* Task priority */
+  1,			/* Task priority */
   &scanJoystick_Handle );	/* Pointer to store the task handle */
 
   xTaskCreate(
@@ -675,7 +675,7 @@ void setup() {
   "CAN_TX",		/* Text name for the task */
   256 ,      		/* Stack size in words, not bytes */
   NULL,			/* Parameter passed into the task */
-  1,			/* Task priority */
+  7,			/* Task priority */
   &CAN_TX_Handle );	/* Pointer to store the task handle */
 
   notes.mutex = xSemaphoreCreateMutex();

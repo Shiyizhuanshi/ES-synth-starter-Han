@@ -304,7 +304,7 @@ void init_settings(){
   settings.lfo.freq=20;
   settings.lfo.on=false;
   settings.lfo.reduceLFOVolume=2;
-  settings.volume=8;
+  settings.volume=4;
   settings.tune=4;
   settings.waveIndex=0;
 }
