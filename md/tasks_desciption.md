@@ -40,3 +40,15 @@ This task is run when the board starts, then ouputs the position id of each boar
 
 ### BackgroundCalcTask
 This task is implemented by thread.
+Double buffer is used, this task writes to a sample buffer and then is used by SampleISR to display.
+
+This task loops through all possible keys, and see if they have been pressed. If they have, depending on the current setting, generate the amplitude for the wave.
+
+Polyphony is achived by summing amplitude of different waves together and taking an average. works for all waves.
+
+Fade and ADSR is achived by counting the time a key is pressed, and change the amplitude of the wave accordingly.
+
+LFO is achived by injecting a low frequency sin wave long with the wave.
+
+LPF is achived by taking in prev amp and current amplitude and take a derivative.
+
