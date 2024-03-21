@@ -35,33 +35,46 @@ void backgroundCalcTask(void * pvParameters){
             keynum+=1;
             hasActiveKey=true;
             if (version_knob_value==8){//sawtooth
-              floatAmp+=calcSawtoothAmp(&notes.notes[i].floatPhaseAcc,vol_knob_value,i);
+              float Amp=calcSawtoothAmp(&notes.notes[i].floatPhaseAcc,vol_knob_value,i);
+              // u_int32_t Vout=
+              floatAmp+=addEffects(Amp,vol_knob_value,i);
 
             }
             else if(version_knob_value==7){//sin wave
-              floatAmp+=getSample(notePhases[i],&notes.notes[i].floatPhaseAcc,sineTable);
-
+              float Amp=getSample(notePhases[i],&notes.notes[i].floatPhaseAcc,sineTable);
+              floatAmp+=addEffects(Amp,vol_knob_value,i);
             }
             else if(version_knob_value==6){//square wave
-              floatAmp+=getSample(notePhases[i],&notes.notes[i].floatPhaseAcc,squareTable);
+              // floatAmp+=getSample(notePhases[i],&notes.notes[i].floatPhaseAcc,squareTable);
+              float Amp=getSample(notePhases[i],&notes.notes[i].floatPhaseAcc,squareTable);
+              floatAmp+=addEffects(Amp,vol_knob_value,i);
             }
             else if(version_knob_value==5){//triangle wave
-              floatAmp+=getSample(notePhases[i],&notes.notes[i].floatPhaseAcc,triangleTable);
+              // floatAmp+=getSample(notePhases[i],&notes.notes[i].floatPhaseAcc,triangleTable);
+              float Amp=getSample(notePhases[i],&notes.notes[i].floatPhaseAcc,triangleTable);
+              floatAmp+=addEffects(Amp,vol_knob_value,i);
             }
             else if(version_knob_value==4){//piano
-              floatAmp+=getSample(notePhases[i],&notes.notes[i].floatPhaseAcc,pianoTable);
+              // floatAmp+=getSample(notePhases[i],&notes.notes[i].floatPhaseAcc,pianoTable);
+              float Amp=getSample(notePhases[i],&notes.notes[i].floatPhaseAcc,pianoTable);
+              floatAmp+=addEffects(Amp,vol_knob_value,i);
 
             }
             else if(version_knob_value==3){//saxophone
-              floatAmp+=getSample(notePhases[i],&notes.notes[i].floatPhaseAcc,saxophoneTable);
+              // floatAmp+=getSample(notePhases[i],&notes.notes[i].floatPhaseAcc,saxophoneTable);
+              float Amp=getSample(notePhases[i],&notes.notes[i].floatPhaseAcc,saxophoneTable);
+              floatAmp+=addEffects(Amp,vol_knob_value,i);
             }
-            else if(version_knob_value==2){//flute
-              floatAmp+=getSample(notePhases[i],&notes.notes[i].floatPhaseAcc,bellTable);
+            else if(version_knob_value==2){//bell
+              // floatAmp+=getSample(notePhases[i],&notes.notes[i].floatPhaseAcc,bellTable);
+              float Amp=getSample(notePhases[i],&notes.notes[i].floatPhaseAcc,bellTable);
+              floatAmp+=addEffects(Amp,vol_knob_value,i);
             }
             else if(version_knob_value==1){//alarm
               float phase=notePhases[i];
               float amp=getSample(phase,&notes.notes[i].floatPhaseAcc, squareTable);
               floatAmp+=calcHornVout(amp,vol_knob_value,i);
+              floatAmp+=addEffects(amp,vol_knob_value,i);
               
             }
             else{ //random
@@ -71,10 +84,11 @@ void backgroundCalcTask(void * pvParameters){
           }
           if (i==95 && keynum>0){
               floatAmp=floatAmp/keynum;
-
-
-              u_int32_t Vout=addEffects(floatAmp,prevfloatAmp,vol_knob_value,i);
-              prevfloatAmp=floatAmp;
+              floatAmp+=addLFO(floatAmp,vol_knob_value);
+              floatAmp=addLPF(floatAmp,&prevfloatAmp);
+              // u_int32_t Vout=addEffects(floatAmp,prevfloatAmp,vol_knob_value,i);
+              // prevfloatAmp=floatAmp;
+              u_int32_t Vout=static_cast<u_int32_t>(floatAmp);
               writeToSampleBuffer(Vout, writeCtr);
               writeCtr+=1;
             }

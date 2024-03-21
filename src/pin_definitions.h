@@ -33,7 +33,7 @@ TaskHandle_t scanJoystick_Handle = NULL;
 U8G2_SSD1305_128X32_NONAME_F_HW_I2C u8g2(U8G2_R0);
 
 
-const int SAMPLE_BUFFER_SIZE =1100;
+const int SAMPLE_BUFFER_SIZE =2200;
 uint8_t sampleBuffer0[SAMPLE_BUFFER_SIZE/2];
 uint8_t sampleBuffer1[SAMPLE_BUFFER_SIZE/2];
 SemaphoreHandle_t sampleBufferSemaphore;
@@ -73,6 +73,7 @@ struct note {
   float floatPhaseAcc;
   int pressedCount;
   bool active;
+
 };
 
 struct {
@@ -284,7 +285,7 @@ float notePhases[96];
 
 void generatePhaseLUT(){
   for (int i=0;i<96;i++){
-    notePhases[i]=noteFrequencies[i]*M_PI*2/SAMPLE_RATE;
+    notePhases[i]=noteFrequencies[i]*M_PI/SAMPLE_RATE;
   }
 }
 

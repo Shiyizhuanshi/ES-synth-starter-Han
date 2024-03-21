@@ -97,8 +97,8 @@ void update_menu_settings(std::string option){
       settings.fade.on = sysState.knobValues[1].clickState;
       settings.fade.fadeSpeed += sysState.knobValues[3].lastIncrement;
       settings.fade.sustainTime += sysState.knobValues[2].lastIncrement;
-      settings.fade.fadeSpeed = constrain(settings.fade.fadeSpeed, 1, 8);
-      settings.fade.sustainTime = constrain(settings.fade.sustainTime, 1, 8);
+      settings.fade.fadeSpeed = constrain(settings.fade.fadeSpeed, 1, 10);
+      settings.fade.sustainTime = constrain(settings.fade.sustainTime, 1, 30);
     }
 
     else if (option == "LFO"){

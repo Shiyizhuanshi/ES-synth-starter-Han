@@ -154,13 +154,11 @@ float calcSawtoothAmp(float *phaseAcc,int volume, int i){
     // uint32_t stepSize=__atomic_load_n(&stepSizes[i%12],__ATOMIC_RELAXED); 
     float stepsize=notePhases[i];
 
-    // int tune=(i-i%12)/12+1;
-    // if ((tune-4)>=0){
-    //     *phaseAcc+=stepSize << (tune-4);}
-    // else{
-    //     *phaseAcc+=stepSize >> -(tune-4);
-    // }
+
     *phaseAcc+=stepsize;
+    if (*phaseAcc>1){
+        *phaseAcc-=1;
+    }
     float amp=*phaseAcc;
     // uint32_t Vout = (*phaseAcc >> 24) - 128;
     // Vout = (Vout+128) >> (8 - volume)) ;
@@ -218,10 +216,10 @@ u_int32_t calcVout(float Amp,int volume, int vshift){
 
 int adsrGeneral(int pressedCount){
     int attack=settings.adsr.attack;
-    int decay=settings.adsr.decay;
-    int sustain=settings.adsr.sustain;
+    int decay=settings.adsr.decay+attack;
+    int sustain=settings.adsr.sustain+decay;
     if (pressedCount<attack && pressedCount>0){
-        return 2-pressedCount;
+        return pressedCount-int(attack/2);
     }
     else if (pressedCount>= attack && decay>=pressedCount){
         return int( (pressedCount-attack));
@@ -231,7 +229,7 @@ int adsrGeneral(int pressedCount){
     }
 
     else{
-        return (decay-attack)+floor((pressedCount-decay));
+        return (decay-attack)+(pressedCount-sustain)/settings.fade.fadeSpeed;
     }
 }
 
@@ -299,21 +297,41 @@ void presssedTimeCount(){
         }
     }
 }
-u_int32_t addEffects(float amp,float prevamp, int volume, int i){
-    int pc=notes.notes[i].pressedCount;
+
+u_int32_t addEffects(float amp, int volume, int i){
+    
     int vshift=0;
-    if (settings.lfo.on){
-        amp+=generateLFO(settings.lfo.reduceLFOVolume,settings.lfo.freq);
-    }
+
     if (settings.fade.on){
+        int pc=notes.notes[i].pressedCount;
         vshift=calcFade(pc,settings.fade.sustainTime,settings.fade.fadeSpeed);
     }
     else if (settings.adsr.on){
+        int pc=notes.notes[i].pressedCount;
         vshift=adsrGeneral(pc);
-    }
-    if (settings.lowpass.on){
-        amp=lowPassFilter(amp, prevamp,settings.lowpass.freq);
     }
     u_int32_t Vout=calcVout(amp, volume,vshift);
     return Vout;
+}
+u_int32_t addLFO(float amp,int volume){
+    if (settings.lfo.on){
+        amp=generateLFO(settings.lfo.reduceLFOVolume,settings.lfo.freq);
+        
+        u_int32_t Vout=calcVout(amp, volume,0);
+        return Vout;
+    }
+    else{
+        return 0;
+    }
+
+
+}
+float addLPF(float amp,float *prevamp){
+    if (settings.lowpass.on){
+        amp=lowPassFilter(amp, *prevamp,settings.lowpass.freq);
+        *prevamp=amp;
+       
+    }
+    return amp;
+
 }
