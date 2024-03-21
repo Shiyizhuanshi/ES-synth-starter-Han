@@ -5,7 +5,7 @@
 
 With our keyboard, you can synthesize your own music and sounds using our unique features! Experiment with 8 different sounds and 5 customizable features to create your own compositions. Let your creativity flow with our keyboard!
 
-**[User Manual](md\UserManual.md)**
+**[User Manual](md/UserManual.md)**
 
 ### Features:
 
@@ -25,6 +25,6 @@ With our keyboard, you can synthesize your own music and sounds using our unique
 - **Multilevel UI:** Easily adjust feature parameters using joystick and knobs in the menu.
 
 **Links to Detailed Reports:**
-- [Critical Instant Analysis](md\CriticalInstantAnalysis.md)
-- [Task Description](md\tasks_desciption.md)
-- [Dependency Analysis](md\dependency.md)
+- [Critical Instant Analysis](md/CriticalInstantAnalysis.md)
+- [Task Description](md/tasks_desciption.md)
+- [Dependency Analysis](md/dependency.md)
