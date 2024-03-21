@@ -86,8 +86,6 @@ void backgroundCalcTask(void * pvParameters){
               floatAmp=floatAmp/keynum;
               floatAmp+=addLFO(floatAmp,vol_knob_value);
               floatAmp=addLPF(floatAmp,&prevfloatAmp);
-              // u_int32_t Vout=addEffects(floatAmp,prevfloatAmp,vol_knob_value,i);
-              // prevfloatAmp=floatAmp;
               u_int32_t Vout=static_cast<u_int32_t>(floatAmp);
               writeToSampleBuffer(Vout, writeCtr);
               writeCtr+=1;
@@ -635,7 +633,7 @@ void setup() {
   "BackCalc",		/* Text name for the task */
   256 ,      		/* Stack size in words, not bytes */
   NULL,			/* Parameter passed into the task */
-  5,			/* Task priority */
+  7,			/* Task priority */
   &BackCalc_Handle );	/* Pointer to store the task handle */
 
   xTaskCreate(
@@ -675,7 +673,7 @@ void setup() {
   "CAN_TX",		/* Text name for the task */
   256 ,      		/* Stack size in words, not bytes */
   NULL,			/* Parameter passed into the task */
-  7,			/* Task priority */
+  5,			/* Task priority */
   &CAN_TX_Handle );	/* Pointer to store the task handle */
 
   notes.mutex = xSemaphoreCreateMutex();

@@ -45,17 +45,23 @@ float noise_filter_cutoff = 0.8;
 
 
 
-
+float dt=1.0f / SAMPLE_RATE;
+float prevcutoffFreq=500;
+float rc=1.0f / (2.0f * M_PI * 500);
+float alpha= dt / (rc + dt);
 
 
 float lowPassFilter(float cur, float prev, float cutoffFreq) {
-    float rc = 1.0f / (2.0f * M_PI * cutoffFreq);
-    float dt = 1.0f / SAMPLE_RATE;
-    float alpha = dt / (rc + dt);
+    
+    if (prevcutoffFreq!=cutoffFreq){
+        rc = 1.0f / (2.0f * M_PI * cutoffFreq);
+        alpha = dt / (rc + dt);
+    }
 
-    // float prev = buffer[0];
-    // for (int i = 1; i < bufferSize; i++) {
-        // float curr = buffer[i];
+    prevcutoffFreq=cutoffFreq;
+    // float 
+
+
     return  prev + alpha * (cur - prev);
         // prev = buffer[i];
     // }
@@ -125,9 +131,17 @@ float getSample(float phaseIcre, float* phaseAcc, float table[]) {
     return table[index];
 }
 float LFOAcc=0;
+float prevLFOfreq=20;
+float lfoPhase=20*M_PI*2/SAMPLE_RATE;
 float generateLFO(int reduceVal,float lfoFreq){
     // float lfoFreq=10.0;
-    float lfoPhase=lfoFreq*M_PI*2/SAMPLE_RATE;
+    if(lfoFreq!=prevLFOfreq){
+        lfoPhase=lfoFreq*M_PI*2/SAMPLE_RATE;
+        
+    }
+    prevLFOfreq=lfoFreq;
+    
+
     float amp=getSample(lfoPhase,&LFOAcc,sineTable)/reduceVal;
     return amp;
 }
