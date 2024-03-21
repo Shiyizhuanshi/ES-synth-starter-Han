@@ -1,30 +1,30 @@
-Music Synthesizer by team SPACEY,
-for the 2024 Embedded Systems coursework
+# Music Synthesizer by Team SPACEY
+## 2024 Embedded Systems Coursework 2
 
-Link to demo video https://youtu.be/WAD-bAxjCrM
+**Demo Video:** [Watch Here](https://youtu.be/WAD-bAxjCrM)
 
-With our keyboard, you can try synthesize your own music and sound with our features! We have 8 different sounds and 5 different features you can apply to your sound, at the same time! See what you can create with our keyboard!
+With our keyboard, you can synthesize your own music and sounds using our unique features! Experiment with 8 different sounds and 5 customizable features to create your own compositions. Let your creativity flow with our keyboard!
 
-[User manual](md\UserManual.md)
+**[User Manual](md\UserManual.md)**
 
-Our features:
+### Features:
 
-- 8 scale volume change
-- 8 scale octave change
+- **Volume Change:** Adjust volume on an 8-scale.
+- **Octave Change:** Shift octaves on an 8-scale.
 
+### Music Features:
 
-Music features:
-- 8 different wave types: sawtooth, sine, square,triangle, piano, saxophone, alarm, bell
-- FULL polyphony with all features and sound types
-- All features have adjustable parameters:
-- Metronome
-- Fade: Sound can fade like real instruments
-- ADSR: Envelope generator for differnent sound
-- Low Frequency Oscillator: Add for more natural sounds
-- Low Pass Filter: Filter away high prequency components
+- **Wave Types:** Choose from 8 different wave types: sawtooth, sine, square, triangle, piano, saxophone, alarm, and bell.
+- **Polyphony:** Enjoy full polyphony with all features and sound types.
+- **Adjustable Parameters:** Customize parameters for metronome, fade, ADSR envelope generator, low-frequency oscillator, and low-pass filter.
 
+### Board Features:
 
-Links to more detailed report:
-  [Crtical Instant Anaylsis](md\CriticalInstantAnalysis.md)
- [Task Description](md\tasks_desciption.md)
-[Dependency Anaylsis](md\dependency.md)
+- **Auto Detection:** Supports automatic detection of stacked boards.
+- **Hot Swap:** Detach the rightmost board to switch to local mode; reattach it for quick stack mode switching.
+- **Multilevel UI:** Easily adjust feature parameters using joystick and knobs in the menu.
+
+**Links to Detailed Reports:**
+- [Critical Instant Analysis](md\CriticalInstantAnalysis.md)
+- [Task Description](md\tasks_desciption.md)
+- [Dependency Analysis](md\dependency.md)
