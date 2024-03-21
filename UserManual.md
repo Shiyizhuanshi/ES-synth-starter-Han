@@ -19,7 +19,7 @@ Metronome (Met): The metronome produces a steady beat to help users play rhythms
  \
 ![image](https://github.com/Shiyizhuanshi/ES-synth-starter-Han/assets/105670417/6893f22d-c901-4798-b5c8-536dc1724a9f)
 
-Fade: This function is used to hold a sound when pressed for some time and involves sustain time and fade speed. The sustain time determines how long the sound will remain after a single pressing without release, and the fade speed determines how fast the sound will be gone after the sustain time has passed. The smaller the fade speed, the faster the sound will disappear. The sustain time can be set by rotating knob 3, with the fade speed changing between 1 and 2.
+Fade: This function is used to hold a sound when pressed for some time and involves sustain time and fade speed. The sustain time determines how long the sound will remain after a single pressing without release, and the fade speed determines how fast the sound will be gone after the sustain time has passed. The smaller the fade speed, the faster the sound will disappear. The sustain time can be set by rotating knob 3, and change the fade speed with knob4.
  \
 ![image](https://github.com/Shiyizhuanshi/ES-synth-starter-Han/assets/105670417/1255cc48-533d-490d-98b1-a35efecb24f5)
 
