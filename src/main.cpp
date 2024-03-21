@@ -315,6 +315,7 @@ void scanKeysTask(void * pvParameters) {
   Serial.println("scanKeysTask started!");
   const TickType_t xFrequency1 = 20/portTICK_PERIOD_MS;
   TickType_t xLastWakeTime1 = xTaskGetTickCount();
+
   std::bitset<12> keys;
   std::bitset<8> current_knobs;
   std::bitset<4> current_knobs_click;
@@ -329,6 +330,8 @@ void scanKeysTask(void * pvParameters) {
   std::bitset<1> old_WestDetect;
   std::bitset<1> old_EastDetect;
 
+  int previousTune = 0;
+  int currentTune = 0;
   while (1){ 
     vTaskDelayUntil( &xLastWakeTime1, xFrequency1);
 
@@ -346,9 +349,19 @@ void scanKeysTask(void * pvParameters) {
     if (currentJoystickState != oldJoystickState && currentJoystickState == 0){
       sysState.joystickState = !sysState.joystickState;
     }
+
     updateKnob(sysState.knobValues, previous_knobs, current_knobs, previous_knobs_click, current_knobs_click);
 
-    update_menu_settings(sysState.currentMenu);
+    update_menu_settings(sysState.currentMenu, currentTune);
+
+    if (currentTune != previousTune && sysState.posId == 0 && !sysState.EastDetect[0]){
+      Serial.println("tune value changed!");
+      settings.tune = currentTune;
+      TX_Message[0] = 'T';
+      TX_Message[1] = currentTune;
+      xQueueSend( msgOutQ, const_cast<uint8_t*>(TX_Message), portMAX_DELAY);
+    }
+
 
     // Serial.println(settings.waveIndex);
     //if there is nothing on the west and east before, but now there is something on the west or east
@@ -386,13 +399,14 @@ void scanKeysTask(void * pvParameters) {
         if (keys[i] != previou_keys[i]){
           TX_Message[0] = keys[i] ? 'R' : 'P';
           TX_Message[1] = i;
-          TX_Message[2] = sysState.posId + 3;
+          TX_Message[2] = settings.tune;
           TX_Message[3] = sysState.posId;
           xQueueSend( msgOutQ, const_cast<uint8_t*>(TX_Message), portMAX_DELAY);
         }
       }
     }
 
+    previousTune = currentTune;
     previou_keys = keys;
     previous_knobs = current_knobs;
     previous_knobs_click = current_knobs_click;
@@ -413,19 +427,22 @@ void displayUpdateTask(void * pvParameters) {
   int index = 0;
   int stay_time = 2000;
   int counter = 0;
+  int pressedKeyH = 20;
   std::bitset<2> previous_knob1("00");
   std::bitset<2> previous_knob2("00");
   std::bitset<2> previous_knob3("00");
   while (1) {
     vTaskDelayUntil( &xLastWakeTime2, xFrequency2);
     u8g2.clearBuffer();
-    u8g2.setFont(u8g2_font_ncenB08_tr);
 
     if (sysState.posId != 0){
-      u8g2.setCursor(30, 20);
+      u8g2.setCursor(30, 15);
+      u8g2.setFont(u8g2_font_ncenB08_tr);
       u8g2.print("Slave board");
+      pressedKeyH = 25;
     }
     else{
+      pressedKeyH = 20;
       if (counter != 0){
         counter --;
       }
@@ -468,6 +485,7 @@ void displayUpdateTask(void * pvParameters) {
       else{
         sysState.currentMenu = "Main";
         u8g2.setCursor(45, 10);
+        u8g2.setFont(u8g2_font_ncenB08_tr);
         u8g2.print("SpaceY");
         u8g2.setFont(u8g2_font_5x8_tr);
         for (int i = 0; i < 4; i++){
@@ -491,23 +509,26 @@ void displayUpdateTask(void * pvParameters) {
             u8g2.drawStr(10+30*i, 29, bottomBar_menu[i].c_str());
           }
         }
-        //display pressed keys
-        std::vector<std::string> pressedKeys;
-        for (int i = 0; i < 12; i++){
-          if (sysState.inputs[i] == 0){
-            pressedKeys.push_back(noteNames[i]);
-          }
-        }
-        for (int i = 0; i < pressedKeys.size(); i++){
-          u8g2.setCursor(10+ 10*i, 18);
-          u8g2.print(pressedKeys[i].c_str());
-        }
       }
       previous_knob1 = extractBits<inputSize, 2>(sysState.inputs, 16, 2);
       previous_knob2 = extractBits<inputSize, 2>(sysState.inputs, 14, 2);
       previous_knob3 = extractBits<inputSize, 2>(sysState.inputs, 12, 2);
       xSemaphoreGive(sysState.mutex);
     }
+
+    u8g2.setFont(u8g2_font_5x8_tr);
+    //display pressed keys
+    std::vector<std::string> pressedKeys;
+    for (int i = 0; i < 12; i++){
+      if (sysState.inputs[i] == 0){
+        pressedKeys.push_back(noteNames[i]);
+      }
+    }
+    for (int i = 0; i < pressedKeys.size(); i++){
+      u8g2.setCursor(10+ 10*i, pressedKeyH);
+      u8g2.print(pressedKeys[i].c_str());
+    }
+
     u8g2.sendBuffer();
     digitalToggle(LED_BUILTIN);
   }
@@ -515,7 +536,6 @@ void displayUpdateTask(void * pvParameters) {
 
 void decodeTask(void * pvParameters) {
   Serial.println("decodeTask started!");
-
   while (1) {
     xQueueReceive(msgInQ, RX_Message, portMAX_DELAY);
     xSemaphoreTake(sysState.mutex, portMAX_DELAY);
@@ -525,13 +545,10 @@ void decodeTask(void * pvParameters) {
       if (RX_Message[0] == 'P'){
         sysState.inputs[RX_Message[1]] = 0;
         notes.notes[(RX_Message[2]-1)*12+RX_Message[1]].active = true;
-        Serial.print("active true");
-
       }
       else if (RX_Message[0] == 'R'){
         sysState.inputs[RX_Message[1]] = 1;
         notes.notes[(RX_Message[2]-1)*12+RX_Message[1]].active = false;
-        Serial.print("active false");
       }
     }
     // // if board 1 receives a message from board 0, it will send the message back to the board 0
@@ -541,6 +558,13 @@ void decodeTask(void * pvParameters) {
         xQueueSend( msgOutQ, const_cast<uint8_t*>(RX_Message), portMAX_DELAY);
     }
     
+    if (RX_Message[0] == 'T'){
+      Serial.println("update tune!");
+      settings.tune = RX_Message[1] + sysState.posId;
+      settings.tune = constrain(settings.tune, 0, 8);
+      Serial.println(settings.tune);
+    }
+
     if (RX_Message[0] == 'N'){
       Serial.println("new board request receriaved!");
       TX_Message[0] = 'U';
@@ -558,16 +582,8 @@ void decodeTask(void * pvParameters) {
       }
     }
 
-    // Serial.print("RX: ");
-    // Serial.print((char) RX_Message[0]);
-    // Serial.print(RX_Message[1]);
-    // Serial.print(RX_Message[2]);
-    // Serial.println();
     xSemaphoreGive(notes.mutex);
     xSemaphoreGive(sysState.mutex);
-
-
-    // }
   }
 }
 
@@ -586,26 +602,16 @@ void CAN_TX_Task (void * pvParameters) {
     
 	}
 }
+
 void time_CAN_TX_Task () {
   // Serial.println("CAN_TX_Task started!");
 	uint8_t msgOut[8];
   msgOut[0]=0;
   msgOut[1]=1;
   msgOut[2]=1;
-	// while (1) {
-	// 	xQueueReceive(msgOutQ, msgOut, portMAX_DELAY);
-	// 	xSemaphoreTake(CAN_TX_Semaphore, portMAX_DELAY);
-    // Serial.print("TX: ");
-    // Serial.print((char) msgOut[0]);
-    // Serial.print(msgOut[1]);
-    // Serial.print(msgOut[2]);
-    // Serial.println();
     for (int i=0;i<48;i++){
       CAN_TX(ID, msgOut);
     }
-		
-    
-	// }
 }
 
 void backCalcTime(){

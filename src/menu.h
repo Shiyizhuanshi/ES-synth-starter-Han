@@ -77,7 +77,7 @@ void menu(int option, setting setting_inside_menu) {
     }
 }
 
-void update_menu_settings(std::string option){
+void update_menu_settings(std::string option, int& currentTune){
     if (option == "Main"){
         settings.volume += sysState.knobValues[3].lastIncrement;
         settings.tune += sysState.knobValues[2].lastIncrement;
@@ -85,6 +85,7 @@ void update_menu_settings(std::string option){
         settings.volume  = constrain(settings.volume, 0, 8);
         settings.tune = constrain(settings.tune, 0, 8);
         settings.waveIndex = constrain(settings.waveIndex, 0, 8);
+        currentTune = settings.tune;
     }
 
     else if (option == "Met"){
