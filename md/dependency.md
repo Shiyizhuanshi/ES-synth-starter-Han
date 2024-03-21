@@ -18,7 +18,7 @@ Intertask blocking dependencies:
 
 ![image](https://github.com/Shiyizhuanshi/ES-synth-starter-Han/assets/105670417/c6b2db20-d41d-4658-b8cd-a84e755536b1)
 
-In the above graph, Display task, sampleISR, backcalc task is dependednt on systate, settings and notes. When the structs are accessed, atomic loads or mutex are all used to prevent deadlocks and improve data security. 
+The above graph shows the dependency structure of the tasks. All of the task dependencies are one way, therefore there is no possible deadlocks unless timing is failed and unexpected behaviors happen.
 
 Some examples of data flow and dependency:
 
@@ -26,4 +26,4 @@ A knob is changed to change tone: ScanKeyTask (change systate)-> CANTX->CANRX->D
 
 A joystick is moved to change menu: joysickscantask(changes movement)->displayupdate(changes update accurdingly)
 
-No deadlocks because the functions that reads to those structs do not have ability to write back to those blocks. Even if they do, the part of the data they write back to are only accessed by themselves and not other structs. Some mistake can be caused due to timing problems of a task not being able to finish, therefore not being able to update the value for the following functions to read, but that does not cause deadlocks.
+No deadlocks because the functions that reads to those structs do not have ability to write back to those blocks. Even if they do, the part of the data they write back to are only accessed by themselves and not other structs. 
