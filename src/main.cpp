@@ -216,7 +216,7 @@ int auto_detect_init(){
     do{
         inputs = readInputs();
         WestDetect = extractBits<28, 1>(inputs, 23, 1);
-        Serial.println(WestDetect[0]);
+        // Serial.println(WestDetect[0]);
         delay(10);
     } while (WestDetect[0]);
     Serial.println("update west detect!");
@@ -351,7 +351,7 @@ void scanKeysTask(void * pvParameters) {
 
     update_menu_settings(sysState.currentMenu);
 
-    Serial.println(settings.waveIndex);
+    // Serial.println(settings.waveIndex);
     //if there is nothing on the west and east before, but now there is something on the west or east
     //then update the posId
     if (old_EastDetect[0] && old_WestDetect[0] && (!sysState.WestDetect[0])){
@@ -469,7 +469,7 @@ void displayUpdateTask(void * pvParameters) {
       else{
         sysState.currentMenu = "Main";
         u8g2.setCursor(45, 10);
-        u8g2.print("StackY");
+        u8g2.print("SpaceY");
         u8g2.setFont(u8g2_font_5x8_tr);
         for (int i = 0; i < 4; i++){
           u8g2.drawFrame(8+30*i, 20, 25, 20);
@@ -525,11 +525,13 @@ void decodeTask(void * pvParameters) {
       if (RX_Message[0] == 'P'){
         sysState.inputs[RX_Message[1]] = 0;
         notes.notes[(RX_Message[2]-1)*12+RX_Message[1]].active = true;
+        Serial.print("active true");
 
       }
       else if (RX_Message[0] == 'R'){
         sysState.inputs[RX_Message[1]] = 1;
         notes.notes[(RX_Message[2]-1)*12+RX_Message[1]].active = false;
+        Serial.print("active false");
       }
     }
     // // if board 1 receives a message from board 0, it will send the message back to the board 0
@@ -633,7 +635,7 @@ void setup() {
   "BackCalc",		/* Text name for the task */
   256 ,      		/* Stack size in words, not bytes */
   NULL,			/* Parameter passed into the task */
-  5,			/* Task priority */
+  7,			/* Task priority */
   &BackCalc_Handle );	/* Pointer to store the task handle */
 
   xTaskCreate(
