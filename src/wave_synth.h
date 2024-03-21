@@ -187,19 +187,19 @@ int adsrHorn(int pressedCount){
 
 //     return Vout;
 // }
-// u_int32_t calcHornVout(float Amp,int volume, int i){
-//     // Amp+=generateLFO(2);
-//     uint32_t Vout = static_cast<uint32_t>(Amp *127) - 128;
-//     int v=adsrHorn(notes.notes[i].pressedCount);
-//     // int v=adsrHorn(notes.notes[i].pressedCount);
-//     int volshift=8 - volume+v;
-//     if (volshift>=0){
+u_int32_t calcHornVout(float Amp,int volume, int i){
+    // Amp+=generateLFO(2);
+    uint32_t Vout = static_cast<uint32_t>(Amp *127) - 128;
+    int v=adsrHorn(notes.notes[i].pressedCount);
+    // int v=adsrHorn(notes.notes[i].pressedCount);
+    int volshift=8 - volume+v;
+    if (volshift>=0){
 
-//     Vout = ((Vout+128) >> (volshift)) ;}
-//     else {Vout = ((Vout+128) << -(volshift)) ;}
+    Vout = ((Vout+128) >> (volshift)) ;}
+    else {Vout = ((Vout+128) << -(volshift)) ;}
 
-//     return Vout;
-// }
+    return Vout;
+}
 
 
 void presssedTimeCount(){
