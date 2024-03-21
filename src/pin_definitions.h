@@ -46,7 +46,6 @@ std::string bottomBar_menu[4] = {"Menu", "Wave", "Tone", "Vol"};
 std::string waveNames[9] = {"Saw", "Sin", "Squ", "Tri", "Pia", "Saxo", "Bell", "Alar", "None"};
 std::string menu_first_level[6] = {"Met", "Fade", "LFO", "ADSR", "LPF", "exit"};
 
-
 struct knob{
   int current_knob_value = 8;
   int lastIncrement = 0;
