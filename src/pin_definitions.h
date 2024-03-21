@@ -16,8 +16,8 @@ volatile uint8_t TX_Message[8] = {0}; //CAN TX message
 
 //Create message input and output queues
 //36 messages of 8 bytes, each message takes around 0.7ms to process
-QueueHandle_t msgInQ = xQueueCreate(36,8);; // Message input queue
-QueueHandle_t msgOutQ = xQueueCreate(36,8);; // Message output queue
+QueueHandle_t msgInQ = xQueueCreate(48,8);; // Message input queue
+QueueHandle_t msgOutQ = xQueueCreate(48,8);; // Message output queue
 
 SemaphoreHandle_t CAN_TX_Semaphore; //CAN TX semaphore
 

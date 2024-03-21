@@ -7,6 +7,7 @@
 #include "read_inputs.h"
 #include "wave_synth.h"
 #include "menu.h"
+#include "testfunc.h"
 
 void writeToSampleBuffer(uint32_t Vout, uint32_t writeCtr){
   if (writeBuffer1){
@@ -404,7 +405,7 @@ void scanKeysTask(void * pvParameters) {
 }
 
 void displayUpdateTask(void * pvParameters) {
-  const TickType_t xFrequency2 = 300/portTICK_PERIOD_MS;
+  const TickType_t xFrequency2 = 100/portTICK_PERIOD_MS;
   TickType_t xLastWakeTime2 = xTaskGetTickCount();
   static uint32_t count = 0;
   int posX = 0;
@@ -514,11 +515,12 @@ void displayUpdateTask(void * pvParameters) {
 
 void decodeTask(void * pvParameters) {
   Serial.println("decodeTask started!");
+
   while (1) {
     xQueueReceive(msgInQ, RX_Message, portMAX_DELAY);
     xSemaphoreTake(sysState.mutex, portMAX_DELAY);
     xSemaphoreTake(notes.mutex, portMAX_DELAY);
-
+    // for (int i=0; i<48; i++){
     if (sysState.posId == 0){
       if (RX_Message[0] == 'P'){
         sysState.inputs[RX_Message[1]] = 0;
@@ -556,14 +558,16 @@ void decodeTask(void * pvParameters) {
       }
     }
 
-    Serial.print("RX: ");
-    Serial.print((char) RX_Message[0]);
-    Serial.print(RX_Message[1]);
-    Serial.print(RX_Message[2]);
-    Serial.println();
+    // Serial.print("RX: ");
+    // Serial.print((char) RX_Message[0]);
+    // Serial.print(RX_Message[1]);
+    // Serial.print(RX_Message[2]);
+    // Serial.println();
     xSemaphoreGive(notes.mutex);
     xSemaphoreGive(sysState.mutex);
 
+
+    // }
   }
 }
 
@@ -582,8 +586,110 @@ void CAN_TX_Task (void * pvParameters) {
     
 	}
 }
+void time_CAN_TX_Task () {
+  // Serial.println("CAN_TX_Task started!");
+	uint8_t msgOut[8];
+  msgOut[0]=0;
+  msgOut[1]=1;
+  msgOut[2]=1;
+	// while (1) {
+	// 	xQueueReceive(msgOutQ, msgOut, portMAX_DELAY);
+	// 	xSemaphoreTake(CAN_TX_Semaphore, portMAX_DELAY);
+    // Serial.print("TX: ");
+    // Serial.print((char) msgOut[0]);
+    // Serial.print(msgOut[1]);
+    // Serial.print(msgOut[2]);
+    // Serial.println();
+    for (int i=0;i<48;i++){
+      CAN_TX(ID, msgOut);
+    }
+		
+    
+	// }
+}
+
+void backCalcTime(){
+    setWorstcaseBackCalc();
+    uint32_t startTime = micros();
+	for (int iter = 0; iter < 32; iter++) {
+		 backgroundCalcTask(NULL);
+     Serial.println(micros()-startTime);
+	}
+}
+void displayTime(){
+    setWorstcaseDisplay();
+    uint32_t startTime = micros();
+	for (int iter = 0; iter < 32; iter++) {
+		 displayUpdateTask(NULL);
+     Serial.println(micros()-startTime);
+	}
+}
+
+void joystickTime(){
+  //joystick has no worst case because it is a simple scan of joystick values
+      uint32_t startTime = micros();
+	for (int iter = 0; iter < 32; iter++) {
+		 scanJoystickTask(NULL);
+     Serial.println(micros()-startTime);
+	}
+
+}
+void canTXtime(){
+
+  uint32_t startTime = micros();
+	for (int iter = 0; iter < 32; iter++) {
+		 time_CAN_TX_Task();
+	}
+  Serial.println(micros()-startTime);
+  
+}
+void scankeyTime(){
+  setWorstCaseScankey();
+      uint32_t startTime = micros();
+	for (int iter = 0; iter < 32; iter++) {
+		 scanKeysTask(NULL);
+    //  Serial.println(micros()-startTime);
+	}
+  Serial.println(micros()-startTime);
+}
+void decodeTime(){
+  // setWorstCaseScankey();
+      uint32_t startTime = micros();
+	for (int iter = 0; iter < 32; iter++) {
+		 decodeTask(NULL);
+    //  Serial.println(micros()-startTime);
+	}
+  Serial.println(micros()-startTime);
+}
+void testSetup(){
+
+  sysState.knobValues[2].current_knob_value = 4;
+  sysState.knobValues[3].current_knob_value = 6;
+  Serial.begin(9600);
+  Serial.println("Serial port initialised");
+  generatePhaseLUT();
+  set_pin_directions();
+  set_notes();
+  init_settings();
+  CAN_Init(true);
+  setCANFilter(0x123,0x7ff);
+  CAN_RegisterRX_ISR(CAN_RX_ISR);
+  CAN_RegisterTX_ISR(CAN_TX_ISR);
+  CAN_Start();
+  // initial_display();
+  // joystickTime();
+  // displayTime();
+  // scankeyTime();
+  backCalcTime();
+  // canTXtime();
+  // decodeTime();
+  // while(1){
+
+  // }
+}
 
 void setup() {
+  // testSetup();
   sysState.knobValues[2].current_knob_value = 4;
   sysState.knobValues[3].current_knob_value = 6;
   //Set pin directions
@@ -633,7 +739,7 @@ void setup() {
   "BackCalc",		/* Text name for the task */
   256 ,      		/* Stack size in words, not bytes */
   NULL,			/* Parameter passed into the task */
-  7,			/* Task priority */
+  4,			/* Task priority */
   &BackCalc_Handle );	/* Pointer to store the task handle */
 
   xTaskCreate(
@@ -649,7 +755,7 @@ void setup() {
   "displayUpdate",		/* Text name for the task */
   256 ,      		/* Stack size in words, not bytes */
   NULL,			/* Parameter passed into the task */
-  1,			/* Task priority */
+  2,			/* Task priority */
   &displayUpdateHandle );	/* Pointer to store the task handle */
 
   xTaskCreate(
@@ -657,7 +763,7 @@ void setup() {
   "decode",		/* Text name for the task */
   256 ,      		/* Stack size in words, not bytes */
   NULL,			/* Parameter passed into the task */
-  3,			/* Task priority */
+  5,			/* Task priority */
   &decodeTaskHandle );	/* Pointer to store the task handle */
 
   xTaskCreate(
@@ -673,12 +779,15 @@ void setup() {
   "CAN_TX",		/* Text name for the task */
   256 ,      		/* Stack size in words, not bytes */
   NULL,			/* Parameter passed into the task */
-  5,			/* Task priority */
+  4,			/* Task priority */
   &CAN_TX_Handle );	/* Pointer to store the task handle */
 
   notes.mutex = xSemaphoreCreateMutex();
   sysState.mutex = xSemaphoreCreateMutex(); //Create mutex
   vTaskStartScheduler();
+
+
+
 }
 
 void loop() {
